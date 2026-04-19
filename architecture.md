@@ -149,7 +149,7 @@ Read-only, server-only. Grouped by domain:
 - `normalizeStockStatus` — enum map from raw string + availability boolean to `in_stock | out_of_stock | low_stock | unavailable | unknown`.
 
 ### Note extraction + mirror rebuild
-- **`notes.mjs`** — shared note extraction + cleanup helpers. Minimal cleanup only: trim punctuation, collapse whitespace, lowercase for storage, preserve source phrases otherwise.
+- **`notes.mjs`** — shared note extraction + cleanup helpers. Minimal cleanup only: trim punctuation, collapse whitespace, lowercase for storage, preserve source phrases otherwise. When a source writes the final list item as `, and amber`, the parser treats that trailing `, and` as a normal comma delimiter so it stores `amber` instead of `and amber`.
 - **`note-sync.mjs`** — exact listing-level note sync (`perfume_source_notes`) plus canonical note rebuild across active listings. Rebuild deletes stale inactive listing note rows, repopulates `source_notes` and `perfume_notes`, then prunes unused rows from `notes`.
 
 ### Source adapters
