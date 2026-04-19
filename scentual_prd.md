@@ -1170,16 +1170,7 @@ Scentual is complete when:
 
 ---
 
-## 18. Open Questions
-
-- Should the user be able to edit or delete previously created personal tags, or only create them?
-- Should the Library search add flow search the full catalog only, or also prioritize manufacturers and recent saves?
-- Should chronological journal view support text search at launch?
-- Should price and stock history appear as tables only, or also as small inline charts later?
-
----
-
-## 19. Summary
+## 18. Summary
 
 Scentual is a single-user perfume product centered on four layers:
 
@@ -1192,6 +1183,6 @@ Its core distinction is the separation between:
 
 - **read-only source/store notes**
 - **personal reusable user fragrance-note tags**
-- **personal reusable generic tags**
+- **personal reusable theme tags**
 
 all wrapped in a pink, modern, editorial interface built on Vercel and Supabase.
