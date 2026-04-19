@@ -31,7 +31,7 @@ vercel.json               # Cron schedule
 
 ## Routes (what each page shows)
 
-All main pages live in the `(shell)` route group, which provides a sticky header (Scentual wordmark + Home / Browse / Collection / Journal) and a footer.
+All main pages live in the `(shell)` route group, which provides a sticky header (Scentual wordmark + Home / Browse / Collection / Journal) and a footer. The top-right nav now renders as pill tabs and highlights the active section; perfume detail pages map to **Browse**, and `/journal/new` maps to **Journal**.
 
 ### `/` — Home (`app/(shell)/page.tsx`)
 Two rails: **Recently added** and **Recently updated** (6 perfumes each). Empty-state hints at running the Ministry of Scent ingest. Data: `getRecentPerfumes`, `getRecentlyUpdatedPerfumes` run in parallel.
@@ -44,7 +44,7 @@ All perfumes from one manufacturer. Data: `getManufacturerBySlug` → `getPerfum
 
 ### `/perfumes/[manufacturer]/[slug]` — Perfume detail
 Two-column layout (1.1fr / 1fr on `md`+):
-- **Left:** big serif name, house link (sized `text-sm` uppercase label), `SaveControls`, personal tags (if saved), store-notes, source descriptions (per-retailer; no "open source" link here — it's on the availability row instead).
+- **Left:** big serif name, house link (sized `text-sm` uppercase label), `SaveControls`, personal tags (always shown — `Fragrance notes` and `Themes`, attachable even when the perfume isn't in Collection or Wanted), store-notes, source descriptions (per-retailer; no "open source" link here — it's on the availability row instead).
 - **Right aside (stacked):**
   - **Availability** (Card) — each active listing with its variants, current price (Intl.NumberFormat), size, stock-status chip, inactive badge. The retailer name is itself the "open source" link (`↗`).
   - **Journal** — "+ New journal entry" button that toggles an inline form (client component `NewJournalEntry`), followed by a **Past entries** list. Each past entry renders as its own bordered card with a left accent border to distinguish it from the new-entry affordance.
@@ -56,7 +56,7 @@ Data: `getPerfumeByManufacturerAndSlug` returns the full tree (manufacturer, per
 Saved-perfumes page renamed from Library to Collection. Header shows only **Collection** with the perfume count, with no micro-label above it. Filter pills: **All Saved** (default) / **Collection** / **Wanted** / **Both** via `?filter=`. Top card is `AddPerfumeSearch` (typeahead into `/api/catalog/search`, two buttons per hit to add to Collection or Wanted). Grid of `SavedCard`s (perfume, house, Collection/Wanted chips, size_owned, personal note, store notes, fragrance-note & theme tags, compact `SaveControls`). Data: `getSavedPerfumes(filter)`.
 
 ### `/journal` — Journal list
-Reverse-chronological by `entry_date`, then `created_at`. Each entry: formatted date, linked perfume, optional title, body. "+ New entry" link. Supports `?perfume=<id>` to filter to one perfume. Data: `listJournalEntries`.
+Reverse-chronological by `entry_date`, then `created_at`. Header shows only **Curated scentual memories...** with the entry count and "+ New entry" link, with no micro-label above it. Each entry renders as an editable card with formatted date, linked perfume, optional title, body, and inline `Edit` / `Delete` controls. Delete requires an in-card confirmation step. Supports `?perfume=<id>` to filter to one perfume. Data: `listJournalEntries`.
 
 ### `/journal/new` — New entry
 Form: `PerfumePicker` (single async-search combobox → `/api/catalog/search`, matches on perfume or house name, emits hidden `perfume_id` after selection), `entry_date` (default today), optional title, required body. Submits to the `createJournalEntry` server action, then redirects to `redirect_to` (or `/journal`).
@@ -68,18 +68,19 @@ Form: `PerfumePicker` (single async-search combobox → `/api/catalog/search`, m
 Every action calls `createServiceClient()` (service-role key, bypasses RLS) and ends with `revalidatePath("/", "layout")` so any server-rendered page picks up the change.
 
 ### `library.ts`
-- `toggleCollection(perfumeId, next)` — upserts `personal_perfumes`, flips `in_collection`, stamps `added_to_collection_at`, deletes the row if both flags become false.
+- `toggleCollection(perfumeId, next)` — upserts `personal_perfumes`, flips `in_collection`, stamps `added_to_collection_at`. When both flags become false, deletes the row only if it carries no tags and no `size_owned_text` / `personal_note`; otherwise leaves a bare row so attached tags / notes survive.
 - `toggleWanted(perfumeId, next)` — same for `in_wanted`.
 - `updatePersonalMeta(perfumeId, { size_owned_text?, personal_note? })`.
 
 ### `tags.ts`
 - `createFragranceNoteTag(name)` / `createThemeTag(name)` — slugifies and upserts on `slug` (idempotent).
-- `addFragranceNoteTagByName(personalPerfumeId, name)` / `addThemeTagByName(...)` — create-if-missing, then upsert the join row.
-- `detachFragranceNoteTag` / `detachThemeTag` — delete join rows.
+- `addFragranceNoteTagByName(perfumeId, name)` / `addThemeTagByName(...)` — create-if-missing the tag, ensure a `personal_perfumes` row exists for the perfume (inserts a bare row if not), then upsert the join row. Lets users tag a perfume without adding it to Collection or Wanted.
+- `detachFragranceNoteTag(perfumeId, tagId)` / `detachThemeTag(...)` — look up the personal row by perfume and delete the join row.
 
 ### `journal.ts`
-- `createJournalEntry(formData)` — reads `perfume_id`, optional `title`, required `body`, `entry_date`. Inserts, revalidates `/journal`, redirects.
-- `updateJournalEntry(formData)` / `deleteJournalEntry(id)`.
+- `createJournalEntry(formData)` — reads `perfume_id`, optional `title`, required `body`, `entry_date`, optional `redirect_to`. Inserts, revalidates `/journal` plus the redirect target when provided, then redirects.
+- `updateJournalEntry(formData)` — reads `id`, editable fields, optional `return_path`; updates and revalidates `/journal` plus the return path when provided.
+- `deleteJournalEntry(formData)` — reads `id`, optional `return_path`; hard-deletes and revalidates `/journal` plus the return path when provided.
 
 ---
 
@@ -191,7 +192,7 @@ Read-only, server-only. Grouped by domain:
 - **`perfume_source_notes`** — per-listing raw note capture, kept in exact sync with the current parsed note set for active listings. `UNIQUE(perfume_listing_id, raw_note_text)`.
 
 ### Personal library
-- **`personal_perfumes`** — `id, perfume_id UNIQUE→ CASCADE, in_collection, in_wanted, size_owned_text?, personal_note?, added_to_collection_at?, added_to_wanted_at?, updated_at`. CHECK `(in_collection OR in_wanted)`. Partial indexes on each flag.
+- **`personal_perfumes`** — `id, perfume_id UNIQUE→ CASCADE, in_collection, in_wanted, size_owned_text?, personal_note?, added_to_collection_at?, added_to_wanted_at?, updated_at`. Partial indexes on each flag. Bare rows (both flags false) are allowed so tags / notes can exist without the perfume being in Collection or Wanted — the original `CHECK (in_collection OR in_wanted)` was dropped in `20260419020001_allow_bare_personal_perfumes.sql`.
 - **`user_fragrance_note_tags`** — `id, name, slug UNIQUE`. User-curated fragrance-note tag vocabulary.
 - **`theme_tags`** (renamed from `generic_tags`) — `id, name, slug UNIQUE`. Theme / mood / occasion tags.
 - **`personal_perfume_user_fragrance_note_tags`** — join, `UNIQUE(personal_perfume_id, user_fragrance_note_tag_id)`.
@@ -217,13 +218,15 @@ Small hand-rolled design system. No shadcn, no headless-ui.
 - **`SaveControls.tsx`** — *client.* Two toggle buttons (Collection / Wanted) with `useTransition`. `compact` variant for `SavedCard`.
 - **`TagTypeahead.tsx`** — *client.* Combobox input with a custom listbox dropdown of unattached tags (filtered by the typed query). Clicking a suggestion or pressing Enter on a highlighted suggestion commits it immediately; pressing Enter on unmatched free text commits the typed value. Attached tags render as removable pills. Variant prop: `fragrance-note | theme`.
 - **`PageShell.tsx`** — max-width 1240px wrapper.
-- **`SectionHeader.tsx`** — micro-label + `font-display` heading + optional description/children.
+- **`SectionHeader.tsx`** — optional micro-label + `font-display` heading + optional description/children.
+- **`ShellNav.tsx`** — *client.* Pathname-aware shell navigation that renders the top-right pill tabs and highlights the active section, including section mapping for perfume detail and journal subpages.
+- **`JournalEntryCard.tsx`** — *client.* Shared inline journal-entry viewer/editor used by the journal list and perfume detail page; supports edit, in-card delete confirmation, and route-aware refresh after mutations.
 
 Page-scoped components live under `app/(shell)/<route>/_components/`:
 - `collection/_components/AddPerfumeSearch.tsx` — client, typeahead → `/api/catalog/search`, one-click add to Collection / Wanted.
 - `library/_components/SavedCard.tsx` — server, composes `Card` + `Chip` + compact `SaveControls`.
 - `journal/new/_components/PerfumePicker.tsx` — client, async-search combobox → `/api/catalog/search` (matches perfume or house), keyboard-navigable results list, selected-chip UI, hidden `perfume_id`.
-- `perfumes/[manufacturer]/[slug]/_components/JournalSection.tsx` — server, renders the `NewJournalEntry` toggle and the past-entries list (bordered cards with a left accent stripe). Lives in the right aside under the Availability card.
+- `perfumes/[manufacturer]/[slug]/_components/JournalSection.tsx` — server, renders the `NewJournalEntry` toggle and the past-entries list using the shared editable `JournalEntryCard` (bordered cards with a left accent stripe). Lives in the right aside under the Availability card.
 - `perfumes/[manufacturer]/[slug]/_components/NewJournalEntry.tsx` — client, renders a "+ New journal entry" button that toggles an inline form (pre-filled `perfume_id`, `redirect_to`, editable `entry_date`). Submits to `createJournalEntry`.
 
 ---
@@ -266,7 +269,7 @@ Defined as CSS custom properties (globals) consumed by Tailwind utilities and CV
 - Perfume identity is `(manufacturer.slug, perfume.slug)`. Both are produced by `slugify` — change that function carefully.
 - Listing identity prefers `(retailer_id, source_product_id)` when present and falls back to `(retailer_id, source_url)`. Variants are `(listing_id, size_label)`.
 - Price/stock history is append-only. Never update rows in `listing_price_history` / `listing_stock_history`.
-- A `personal_perfumes` row must have `in_collection OR in_wanted`. Toggling both off deletes the row (and by cascade, its tag joins).
+- A `personal_perfumes` row may exist with both flags false when it carries tags or notes (the old `in_collection OR in_wanted` CHECK was dropped). Toggling both flags off deletes the row only if it has no attached tags and no `size_owned_text` / `personal_note`; otherwise the row is kept so user data survives.
 - Store notes (scraper output) are distinct from personal fragrance-note tags; they live in different tables and render as different Chip variants.
 - Canonical store notes are an exact mirror of explicit note blocks on active product pages. If a note disappears from every active listing, the rebuild prunes it from `notes`, `source_notes`, and `perfume_notes`.
 - All mutations revalidate at `("/", "layout")`. If you add a mutation, call it.

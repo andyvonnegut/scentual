@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/service";
 import { slugify } from "@/lib/scrape/normalize";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Create-or-return helpers. Both return the tag row so callers can chain an
 // attach immediately. Slug collision → return existing (idempotent create).
@@ -35,22 +36,56 @@ export async function createThemeTag(name: string) {
   return data;
 }
 
-// One-shot actions that take a tag name and a personal_perfume_id. If the tag
-// doesn't exist yet, create it; then attach. Powers the type-ahead UX on the
-// perfume detail page.
+// Returns the personal_perfumes row id for this perfume, creating a bare row
+// (neither in_collection nor in_wanted) if one doesn't exist. Lets us hang
+// tags on a perfume the user hasn't explicitly saved.
+async function ensurePersonalPerfumeId(
+  db: SupabaseClient,
+  perfumeId: number,
+): Promise<number | null> {
+  const { data: existing } = await db
+    .from("personal_perfumes")
+    .select("id")
+    .eq("perfume_id", perfumeId)
+    .maybeSingle();
+  if (existing?.id) return existing.id as number;
+  const { data: inserted } = await db
+    .from("personal_perfumes")
+    .insert({ perfume_id: perfumeId })
+    .select("id")
+    .single();
+  return (inserted?.id as number) ?? null;
+}
+
+async function getPersonalPerfumeId(
+  db: SupabaseClient,
+  perfumeId: number,
+): Promise<number | null> {
+  const { data } = await db
+    .from("personal_perfumes")
+    .select("id")
+    .eq("perfume_id", perfumeId)
+    .maybeSingle();
+  return (data?.id as number) ?? null;
+}
+
+// One-shot actions keyed by perfumeId. If the personal_perfumes row doesn't
+// exist yet, a bare row is created so the tag has somewhere to hang.
 
 export async function addFragranceNoteTagByName(
-  personalPerfumeId: number,
+  perfumeId: number,
   name: string,
 ) {
   const tag = await createFragranceNoteTag(name);
   if (!tag) return;
   const db = createServiceClient();
+  const personalId = await ensurePersonalPerfumeId(db, perfumeId);
+  if (!personalId) return;
   await db
     .from("personal_perfume_user_fragrance_note_tags")
     .upsert(
       {
-        personal_perfume_id: personalPerfumeId,
+        personal_perfume_id: personalId,
         user_fragrance_note_tag_id: tag.id,
       },
       {
@@ -61,18 +96,17 @@ export async function addFragranceNoteTagByName(
   revalidatePath("/", "layout");
 }
 
-export async function addThemeTagByName(
-  personalPerfumeId: number,
-  name: string,
-) {
+export async function addThemeTagByName(perfumeId: number, name: string) {
   const tag = await createThemeTag(name);
   if (!tag) return;
   const db = createServiceClient();
+  const personalId = await ensurePersonalPerfumeId(db, perfumeId);
+  if (!personalId) return;
   await db
     .from("personal_perfume_theme_tags")
     .upsert(
       {
-        personal_perfume_id: personalPerfumeId,
+        personal_perfume_id: personalId,
         theme_tag_id: tag.id,
       },
       {
@@ -84,27 +118,28 @@ export async function addThemeTagByName(
 }
 
 export async function detachFragranceNoteTag(
-  personalPerfumeId: number,
+  perfumeId: number,
   tagId: number,
 ) {
   const db = createServiceClient();
+  const personalId = await getPersonalPerfumeId(db, perfumeId);
+  if (!personalId) return;
   await db
     .from("personal_perfume_user_fragrance_note_tags")
     .delete()
-    .eq("personal_perfume_id", personalPerfumeId)
+    .eq("personal_perfume_id", personalId)
     .eq("user_fragrance_note_tag_id", tagId);
   revalidatePath("/", "layout");
 }
 
-export async function detachThemeTag(
-  personalPerfumeId: number,
-  tagId: number,
-) {
+export async function detachThemeTag(perfumeId: number, tagId: number) {
   const db = createServiceClient();
+  const personalId = await getPersonalPerfumeId(db, perfumeId);
+  if (!personalId) return;
   await db
     .from("personal_perfume_theme_tags")
     .delete()
-    .eq("personal_perfume_id", personalPerfumeId)
+    .eq("personal_perfume_id", personalId)
     .eq("theme_tag_id", tagId);
   revalidatePath("/", "layout");
 }

@@ -40,10 +40,10 @@ export function TagTypeahead({
   const filtered = q
     ? available.filter((s) => s.name.toLowerCase().includes(q))
     : available;
-
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [value, attached.length, suggestions.length]);
+  const clampedActiveIndex = Math.min(
+    activeIndex,
+    Math.max(filtered.length - 1, 0),
+  );
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -76,8 +76,8 @@ export function TagTypeahead({
       setActiveIndex((i) => Math.max(i - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (open && filtered[activeIndex]) {
-        submit(filtered[activeIndex].name);
+      if (open && filtered[clampedActiveIndex]) {
+        submit(filtered[clampedActiveIndex].name);
       } else {
         submit();
       }
@@ -126,6 +126,7 @@ export function TagTypeahead({
             value={value}
             onChange={(e) => {
               setValue(e.target.value);
+              setActiveIndex(0);
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}
@@ -143,14 +144,14 @@ export function TagTypeahead({
                 <li
                   key={s.id}
                   role="option"
-                  aria-selected={i === activeIndex}
+                  aria-selected={i === clampedActiveIndex}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     submit(s.name);
                   }}
                   onMouseEnter={() => setActiveIndex(i)}
                   className={`cursor-pointer px-3 py-2 text-xs ${
-                    i === activeIndex
+                    i === clampedActiveIndex
                       ? "bg-[color:var(--surface)]"
                       : "hover:bg-[color:var(--surface)]"
                   }`}

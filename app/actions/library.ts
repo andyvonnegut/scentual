@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/service";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 async function upsertPersonal(perfumeId: number) {
   const db = createServiceClient();
@@ -11,6 +12,31 @@ async function upsertPersonal(perfumeId: number) {
     .eq("perfume_id", perfumeId)
     .maybeSingle();
   return { db, existing };
+}
+
+// A personal_perfumes row is worth keeping around (even with both flags off)
+// if the user has attached tags or written notes on it. Without this check,
+// un-toggling the last list would silently cascade-delete their tags.
+async function hasPersonalData(
+  db: SupabaseClient,
+  personalId: number,
+  existing: {
+    size_owned_text?: string | null;
+    personal_note?: string | null;
+  } | null,
+): Promise<boolean> {
+  if (existing?.size_owned_text || existing?.personal_note) return true;
+  const [fragCount, themeCount] = await Promise.all([
+    db
+      .from("personal_perfume_user_fragrance_note_tags")
+      .select("personal_perfume_id", { count: "exact", head: true })
+      .eq("personal_perfume_id", personalId),
+    db
+      .from("personal_perfume_theme_tags")
+      .select("personal_perfume_id", { count: "exact", head: true })
+      .eq("personal_perfume_id", personalId),
+  ]);
+  return (fragCount.count ?? 0) > 0 || (themeCount.count ?? 0) > 0;
 }
 
 export async function toggleCollection(perfumeId: number, next: boolean) {
@@ -27,7 +53,11 @@ export async function toggleCollection(perfumeId: number, next: boolean) {
     });
   } else {
     const keepWanted = existing.in_wanted;
-    if (!next && !keepWanted) {
+    const shouldPreserve =
+      !next &&
+      !keepWanted &&
+      (await hasPersonalData(db, existing.id, existing));
+    if (!next && !keepWanted && !shouldPreserve) {
       await db.from("personal_perfumes").delete().eq("id", existing.id);
     } else {
       await db
@@ -60,7 +90,11 @@ export async function toggleWanted(perfumeId: number, next: boolean) {
     });
   } else {
     const keepCollection = existing.in_collection;
-    if (!next && !keepCollection) {
+    const shouldPreserve =
+      !next &&
+      !keepCollection &&
+      (await hasPersonalData(db, existing.id, existing));
+    if (!next && !keepCollection && !shouldPreserve) {
       await db.from("personal_perfumes").delete().eq("id", existing.id);
     } else {
       await db

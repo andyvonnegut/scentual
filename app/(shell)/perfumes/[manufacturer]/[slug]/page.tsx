@@ -63,10 +63,11 @@ export default async function PerfumeDetailPage({
   if (!perfume) notFound();
   const returnPath = `/perfumes/${manufacturer}/${slug}`;
 
-  const personal = await getPersonalPerfumeByPerfumeId(perfume.id);
-  const [allFragranceTags, allThemeTags] = personal
-    ? await Promise.all([getAllFragranceNoteTags(), getAllThemeTags()])
-    : [[], []];
+  const [personal, allFragranceTags, allThemeTags] = await Promise.all([
+    getPersonalPerfumeByPerfumeId(perfume.id),
+    getAllFragranceNoteTags(),
+    getAllThemeTags(),
+  ]);
 
   const attachedFragranceTags =
     personal?.personal_perfume_user_fragrance_note_tags
@@ -168,30 +169,28 @@ export default async function PerfumeDetailPage({
             />
           </div>
 
-          {personal && (
-            <div className="flex flex-col gap-6 border-t border-[color:var(--line)] pt-6">
-              <TagTypeahead
-                label="Fragrance notes"
-                placeholder="Type a note…"
-                listId={`frag-tags-${perfume.id}`}
-                variant="fragrance-note"
-                attached={attachedFragranceTags}
-                suggestions={allFragranceTags}
-                onAdd={addFragranceNoteTagByName.bind(null, personal.id)}
-                onRemove={detachFragranceNoteTag.bind(null, personal.id)}
-              />
-              <TagTypeahead
-                label="Themes"
-                placeholder="Type a theme…"
-                listId={`theme-tags-${perfume.id}`}
-                variant="theme"
-                attached={attachedThemeTags}
-                suggestions={allThemeTags}
-                onAdd={addThemeTagByName.bind(null, personal.id)}
-                onRemove={detachThemeTag.bind(null, personal.id)}
-              />
-            </div>
-          )}
+          <div className="flex flex-col gap-6 border-t border-[color:var(--line)] pt-6">
+            <TagTypeahead
+              label="Fragrance notes"
+              placeholder="Type a note…"
+              listId={`frag-tags-${perfume.id}`}
+              variant="fragrance-note"
+              attached={attachedFragranceTags}
+              suggestions={allFragranceTags}
+              onAdd={addFragranceNoteTagByName.bind(null, perfume.id)}
+              onRemove={detachFragranceNoteTag.bind(null, perfume.id)}
+            />
+            <TagTypeahead
+              label="Themes"
+              placeholder="Type a theme…"
+              listId={`theme-tags-${perfume.id}`}
+              variant="theme"
+              attached={attachedThemeTags}
+              suggestions={allThemeTags}
+              onAdd={addThemeTagByName.bind(null, perfume.id)}
+              onRemove={detachThemeTag.bind(null, perfume.id)}
+            />
+          </div>
 
           {storeNotes.length > 0 && (
             <section className="flex flex-col gap-3">
