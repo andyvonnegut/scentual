@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/scrape/ministryofscent",
+      "schedule": "17 3 * * *"
+    },
+    {
+      "path": "/api/cron/scrape/luckyscent",
+      "schedule": "17 4 * * *"
+    }
+  ]
+}
