@@ -104,11 +104,11 @@ function classify(row: PerfumeRow): { hit: boolean; reason: string } {
   }
 
   // Slug-level safety net for the exact patterns seen in prod.
-  if (/gifts?-with-purchase/.test(row.manufacturer.slug)) {
+  if (/gifts?-with-purchase|gift-certificates?/.test(row.manufacturer.slug)) {
     return { hit: true, reason: `manufacturer slug (${row.manufacturer.slug})` };
   }
   if (
-    /^\d+-piece-|-piece-|discovery-(?:kit|set)$|-gift-set$|-sampler$|-bundle$|-kit$|sample-set/.test(
+    /^\d+-piece-|-piece-|discovery-(?:kit|set)$|-gift-set$|-sampler$|-bundle$|-kit$|sample-set|^gift-(?:card|wrap|wrapping|certificate)$|-gift-(?:card|wrap|wrapping|certificate)$|^e-?certificate$/.test(
       row.slug,
     )
   ) {

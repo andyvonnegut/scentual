@@ -22,8 +22,13 @@ const MULTI_VIAL_SIZE = /\b\d+\s*[x×]\s*\d+(?:\.\d+)?\s*ml\b/i;
 const SINGLE_BOTTLE_SIZE = /\b\d+(?:\.\d+)?\s*(?:ml|oz)\b/i;
 
 // LuckyScent has a dedicated storefront vendor for promo items. By definition
-// nothing under that vendor is a real perfume.
-const GWP_VENDOR = /gifts?\s*with\s*purchase|gwp/i;
+// nothing under that vendor is a real perfume. Same for gift-card vendors.
+const NON_PERFUME_VENDOR = /gifts?\s*with\s*purchase|gwp|gift\s*certificates?/i;
+
+// Gift cards, e-certificates, gift wrapping — not fragrances, and they come
+// through the same Shopify product feed as everything else.
+const NON_PERFUME_KEYWORDS =
+  /\bgift\s*(?:card|wrap|wrapping|certificate)s?\b|\be[-\s]?certificates?\b/i;
 
 export interface SetDetectorInput {
   productType?: string | null;
@@ -44,8 +49,10 @@ export function isSetOrKit(input: SetDetectorInput): boolean {
   const { productType, title, vendor, variants } = input;
 
   if (productType && SET_KEYWORDS.test(productType)) return true;
-  if (vendor && GWP_VENDOR.test(vendor)) return true;
+  if (productType && NON_PERFUME_KEYWORDS.test(productType)) return true;
+  if (vendor && NON_PERFUME_VENDOR.test(vendor)) return true;
   if (SET_KEYWORDS.test(title)) return true;
+  if (NON_PERFUME_KEYWORDS.test(title)) return true;
   if (PIECE_COUNT.test(title)) return true;
 
   if (variants?.length) {
