@@ -35,10 +35,7 @@ export default async function BrowsePage({
   return (
     <PageShell>
       <div className="flex flex-col gap-10">
-        <SectionHeader
-          label="Browse"
-          title="The catalog"
-        >
+        <SectionHeader title="The catalog">
           <p className="text-[color:var(--text-soft)] text-base max-w-xl">
             {perfumes.length} {perfumes.length === 1 ? "result" : "results"}
             {params.q && <> for &ldquo;{params.q}&rdquo;</>}

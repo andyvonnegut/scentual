@@ -17,7 +17,7 @@ export async function createFragranceNoteTag(name: string) {
     .upsert({ name: trimmed, slug }, { onConflict: "slug" })
     .select("id, name, slug")
     .single();
-  revalidatePath("/library");
+  revalidatePath("/collection");
   return data;
 }
 
@@ -31,7 +31,7 @@ export async function createThemeTag(name: string) {
     .upsert({ name: trimmed, slug }, { onConflict: "slug" })
     .select("id, name, slug")
     .single();
-  revalidatePath("/library");
+  revalidatePath("/collection");
   return data;
 }
 

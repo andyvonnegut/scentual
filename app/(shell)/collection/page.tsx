@@ -14,7 +14,7 @@ const FILTERS: { value: LibraryFilter; label: string }[] = [
   { value: "both", label: "Both" },
 ];
 
-export default async function LibraryPage({
+export default async function CollectionPage({
   searchParams,
 }: {
   searchParams: Promise<{ filter?: LibraryFilter }>;
@@ -29,7 +29,7 @@ export default async function LibraryPage({
   return (
     <PageShell>
       <div className="flex flex-col gap-10">
-        <SectionHeader label="Your archive" title="Library">
+        <SectionHeader title="Collection">
           <p className="text-[color:var(--text-soft)] text-base">
             {saved.length} {saved.length === 1 ? "perfume" : "perfumes"}
           </p>
@@ -39,7 +39,10 @@ export default async function LibraryPage({
           <div className="inline-flex rounded-[var(--radius-pill)] border border-[color:var(--line)] p-1 bg-[color:var(--bg-elevated)] w-fit">
             {FILTERS.map((f) => {
               const isActive = f.value === active;
-              const href = f.value === "all" ? "/library" : `/library?filter=${f.value}`;
+              const href =
+                f.value === "all"
+                  ? "/collection"
+                  : `/collection?filter=${f.value}`;
               return (
                 <Link
                   key={f.value}

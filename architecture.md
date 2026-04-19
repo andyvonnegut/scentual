@@ -8,7 +8,7 @@ Scentual is a single-user private perfume library + journal. It maintains a cano
 
 Stack: Next.js 16 App Router (React 19), Supabase (Postgres + SSR client), Tailwind 4, Vercel (Fluid Compute + Cron), TypeScript.
 
-Deployment workflow: changes are expected to ship through a Preview deployment first, then to `main` for production at `https://scentual.vercel.app/`. By default, a request is not complete until the change is committed, the Preview deploy is verified, `main` is updated, and production is verified.
+Deployment workflow: changes ship directly on `main` to production at `https://scentual.vercel.app/`. By default, a request is not complete until the change is committed to `main`, pushed, and production is updated.
 
 ---
 
@@ -31,13 +31,13 @@ vercel.json               # Cron schedule
 
 ## Routes (what each page shows)
 
-All main pages live in the `(shell)` route group, which provides a sticky header (Scentual wordmark + Home / Browse / Library / Journal) and a footer.
+All main pages live in the `(shell)` route group, which provides a sticky header (Scentual wordmark + Home / Browse / Collection / Journal) and a footer.
 
 ### `/` — Home (`app/(shell)/page.tsx`)
 Two rails: **Recently added** and **Recently updated** (6 perfumes each). Empty-state hints at running the Ministry of Scent ingest. Data: `getRecentPerfumes`, `getRecentlyUpdatedPerfumes` run in parallel.
 
 ### `/browse` — Catalog (`app/(shell)/browse/page.tsx`)
-Server-rendered search. GET form with three filters: `q` (name ilike), `manufacturer` (slug), `note` (slug). Up to 120 results. Each card shows perfume name, house link, and up to 6 store notes as `store` chips. Data: `searchPerfumes`, plus `getAllManufacturers` / `getAllNotes` for the filter dropdowns. `getAllNotes` paginates the full canonical note vocabulary instead of relying on Supabase's default 1,000-row page.
+Server-rendered search. Header shows only **The catalog** with result-count copy, with no micro-label above it. GET form with three filters: `q` (name ilike), `manufacturer` (slug), `note` (slug). Up to 120 results. Each card shows perfume name, house link, and up to 6 store notes as `store` chips. Data: `searchPerfumes`, plus `getAllManufacturers` / `getAllNotes` for the filter dropdowns. `getAllNotes` paginates the full canonical note vocabulary instead of relying on Supabase's default 1,000-row page.
 
 ### `/browse/manufacturers/[slug]` — House page
 All perfumes from one manufacturer. Data: `getManufacturerBySlug` → `getPerfumesByManufacturer`.
@@ -52,8 +52,8 @@ Two-column layout (1.1fr / 1fr on `md`+):
 
 Data: `getPerfumeByManufacturerAndSlug` returns the full tree (manufacturer, perfume_notes, perfume_listings → retailer + variants, journal_entries, personal_perfumes). Then `getPriceHistory(variantId)` / `getStockHistory(variantId)` are fanned out in parallel for every variant.
 
-### `/library` — Personal library
-Filter pills: **All Saved** (default) / **Collection** / **Wanted** / **Both** via `?filter=`. Top card is `AddPerfumeSearch` (typeahead into `/api/catalog/search`, two buttons per hit to add to Collection or Wanted). Grid of `SavedCard`s (perfume, house, Collection/Wanted chips, size_owned, personal note, store notes, fragrance-note & theme tags, compact `SaveControls`). Data: `getSavedPerfumes(filter)`.
+### `/collection` — Collection
+Saved-perfumes page renamed from Library to Collection. Header shows only **Collection** with the perfume count, with no micro-label above it. Filter pills: **All Saved** (default) / **Collection** / **Wanted** / **Both** via `?filter=`. Top card is `AddPerfumeSearch` (typeahead into `/api/catalog/search`, two buttons per hit to add to Collection or Wanted). Grid of `SavedCard`s (perfume, house, Collection/Wanted chips, size_owned, personal note, store notes, fragrance-note & theme tags, compact `SaveControls`). Data: `getSavedPerfumes(filter)`.
 
 ### `/journal` — Journal list
 Reverse-chronological by `entry_date`, then `created_at`. Each entry: formatted date, linked perfume, optional title, body. "+ New entry" link. Supports `?perfume=<id>` to filter to one perfume. Data: `listJournalEntries`.
@@ -220,7 +220,7 @@ Small hand-rolled design system. No shadcn, no headless-ui.
 - **`SectionHeader.tsx`** — micro-label + `font-display` heading + optional description/children.
 
 Page-scoped components live under `app/(shell)/<route>/_components/`:
-- `library/_components/AddPerfumeSearch.tsx` — client, typeahead → `/api/catalog/search`, one-click add to Collection / Wanted.
+- `collection/_components/AddPerfumeSearch.tsx` — client, typeahead → `/api/catalog/search`, one-click add to Collection / Wanted.
 - `library/_components/SavedCard.tsx` — server, composes `Card` + `Chip` + compact `SaveControls`.
 - `journal/new/_components/PerfumePicker.tsx` — client, async-search combobox → `/api/catalog/search` (matches perfume or house), keyboard-navigable results list, selected-chip UI, hidden `perfume_id`.
 - `perfumes/[manufacturer]/[slug]/_components/JournalSection.tsx` — server, renders the `NewJournalEntry` toggle and the past-entries list (bordered cards with a left accent stripe). Lives in the right aside under the Availability card.
