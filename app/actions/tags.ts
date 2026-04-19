@@ -58,7 +58,7 @@ export async function addFragranceNoteTagByName(
         ignoreDuplicates: true,
       },
     );
-  revalidatePath("/library");
+  revalidatePath("/", "layout");
 }
 
 export async function addThemeTagByName(
@@ -80,7 +80,7 @@ export async function addThemeTagByName(
         ignoreDuplicates: true,
       },
     );
-  revalidatePath("/library");
+  revalidatePath("/", "layout");
 }
 
 export async function detachFragranceNoteTag(
@@ -93,7 +93,7 @@ export async function detachFragranceNoteTag(
     .delete()
     .eq("personal_perfume_id", personalPerfumeId)
     .eq("user_fragrance_note_tag_id", tagId);
-  revalidatePath("/library");
+  revalidatePath("/", "layout");
 }
 
 export async function detachThemeTag(
@@ -106,5 +106,5 @@ export async function detachThemeTag(
     .delete()
     .eq("personal_perfume_id", personalPerfumeId)
     .eq("theme_tag_id", tagId);
-  revalidatePath("/library");
+  revalidatePath("/", "layout");
 }

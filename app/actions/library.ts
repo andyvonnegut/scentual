@@ -43,7 +43,7 @@ export async function toggleCollection(perfumeId: number, next: boolean) {
     }
   }
 
-  revalidatePath("/library");
+  revalidatePath("/", "layout");
 }
 
 export async function toggleWanted(perfumeId: number, next: boolean) {
@@ -74,7 +74,7 @@ export async function toggleWanted(perfumeId: number, next: boolean) {
     }
   }
 
-  revalidatePath("/library");
+  revalidatePath("/", "layout");
 }
 
 export async function updatePersonalMeta(
@@ -83,5 +83,5 @@ export async function updatePersonalMeta(
 ) {
   const db = createServiceClient();
   await db.from("personal_perfumes").update(patch).eq("perfume_id", perfumeId);
-  revalidatePath("/library");
+  revalidatePath("/", "layout");
 }

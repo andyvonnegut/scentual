@@ -20,14 +20,29 @@ export function SaveControls({
   const [isPending, startTransition] = useTransition();
 
   const handleCollection = () => {
-    const next = !inCollection;
+    const prev = inCollection;
+    const next = !prev;
     setInCollection(next);
-    startTransition(() => toggleCollection(perfumeId, next));
+    startTransition(async () => {
+      try {
+        await toggleCollection(perfumeId, next);
+      } catch {
+        setInCollection(prev);
+      }
+    });
   };
+
   const handleWanted = () => {
-    const next = !inWanted;
+    const prev = inWanted;
+    const next = !prev;
     setInWanted(next);
-    startTransition(() => toggleWanted(perfumeId, next));
+    startTransition(async () => {
+      try {
+        await toggleWanted(perfumeId, next);
+      } catch {
+        setInWanted(prev);
+      }
+    });
   };
 
   const base =
