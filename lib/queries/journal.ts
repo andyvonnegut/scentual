@@ -32,11 +32,3 @@ export async function listJournalEntriesForPerfume(perfumeId: number) {
   return data ?? [];
 }
 
-export async function getAllPerfumesForPicker() {
-  const db = await createClient();
-  const { data } = await db
-    .from("perfumes")
-    .select("id, name, slug, manufacturer:manufacturers(id, name, slug)")
-    .order("name", { ascending: true });
-  return data ?? [];
-}

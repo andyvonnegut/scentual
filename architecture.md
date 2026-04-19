@@ -50,13 +50,13 @@ Two-column layout (1.1fr / 1fr on `md`+):
 Data: `getPerfumeByManufacturerAndSlug` returns the full tree (manufacturer, perfume_notes, perfume_listings → retailer + variants, journal_entries, personal_perfumes). Then `getPriceHistory(variantId)` / `getStockHistory(variantId)` are fanned out in parallel for every variant.
 
 ### `/library` — Personal library
-Filter pills: **All Saved** (default) / **Collection** / **Wanted** / **Both** via `?filter=`. Top card is `AddPerfumeSearch` (typeahead into `/api/library/search`, two buttons per hit to add to Collection or Wanted). Grid of `SavedCard`s (perfume, house, Collection/Wanted chips, size_owned, personal note, store notes, fragrance-note & theme tags, compact `SaveControls`). Data: `getSavedPerfumes(filter)`.
+Filter pills: **All Saved** (default) / **Collection** / **Wanted** / **Both** via `?filter=`. Top card is `AddPerfumeSearch` (typeahead into `/api/catalog/search`, two buttons per hit to add to Collection or Wanted). Grid of `SavedCard`s (perfume, house, Collection/Wanted chips, size_owned, personal note, store notes, fragrance-note & theme tags, compact `SaveControls`). Data: `getSavedPerfumes(filter)`.
 
 ### `/journal` — Journal list
 Reverse-chronological by `entry_date`, then `created_at`. Each entry: formatted date, linked perfume, optional title, body. "+ New entry" link. Supports `?perfume=<id>` to filter to one perfume. Data: `listJournalEntries`.
 
 ### `/journal/new` — New entry
-Form: `PerfumePicker` (optional house filter + required perfume datalist, emits hidden `perfume_id`), `entry_date` (default today), optional title, required body. Submits to the `createJournalEntry` server action, then redirects to `redirect_to` (or `/journal`).
+Form: `PerfumePicker` (single async-search combobox → `/api/catalog/search`, matches on perfume or house name, emits hidden `perfume_id` after selection), `entry_date` (default today), optional title, required body. Submits to the `createJournalEntry` server action, then redirects to `redirect_to` (or `/journal`).
 
 ---
 
@@ -92,8 +92,8 @@ Every action calls `createServiceClient()` (service-role key, bypasses RLS) and 
 ### `GET /api/dev/scrape/[source]` — same, no auth
 Manual trigger for dev; do not expose in prod without gating.
 
-### `GET /api/library/search?q=...` — catalog typeahead
-Returns up to 20 `{ id, name, slug, manufacturer: { id, name, slug } }`. Consumed by `AddPerfumeSearch`.
+### `GET /api/catalog/search?q=...` — catalog typeahead
+Returns up to 25 `{ id, name, slug, manufacturer: { id, name, slug } }` whose perfume name OR manufacturer name matches `q` (case-insensitive substring). Consumed by `AddPerfumeSearch` (library) and `PerfumePicker` (journal).
 
 ---
 
@@ -108,9 +108,9 @@ Returns up to 20 `{ id, name, slug, manufacturer: { id, name, slug } }`. Consume
 
 ### Queries (`lib/queries/`)
 Read-only, server-only. Grouped by domain:
-- **`perfumes.ts`**: `getRecentPerfumes`, `getRecentlyUpdatedPerfumes`, `searchPerfumes`, `getAllManufacturers`, `getAllNotes`, `getPerfumeByManufacturerAndSlug`, `getPriceHistory`, `getStockHistory`, `getManufacturerBySlug`, `getPerfumesByManufacturer`.
-- **`library.ts`**: `LibraryFilter` type; `getSavedPerfumes(filter)`, `getPersonalPerfumeByPerfumeId`, `getAllFragranceNoteTags`, `getAllThemeTags`, `searchCatalogForLibrary`.
-- **`journal.ts`**: `listJournalEntries(perfumeId?)`, `listJournalEntriesForPerfume`, `getAllPerfumesForPicker`.
+- **`perfumes.ts`**: `getRecentPerfumes`, `getRecentlyUpdatedPerfumes`, `searchPerfumes`, `searchCatalog`, `getAllManufacturers`, `getAllNotes`, `getPerfumeByManufacturerAndSlug`, `getPriceHistory`, `getStockHistory`, `getManufacturerBySlug`, `getPerfumesByManufacturer`.
+- **`library.ts`**: `LibraryFilter` type; `getSavedPerfumes(filter)`, `getPersonalPerfumeByPerfumeId`, `getAllFragranceNoteTags`, `getAllThemeTags`.
+- **`journal.ts`**: `listJournalEntries(perfumeId?)`, `listJournalEntriesForPerfume`.
 
 ### Data flow
 
@@ -210,9 +210,9 @@ Small hand-rolled design system. No shadcn, no headless-ui.
 - **`SectionHeader.tsx`** — micro-label + `font-display` heading + optional description/children.
 
 Page-scoped components live under `app/(shell)/<route>/_components/`:
-- `library/_components/AddPerfumeSearch.tsx` — client, typeahead → `/api/library/search`, one-click add to Collection / Wanted.
+- `library/_components/AddPerfumeSearch.tsx` — client, typeahead → `/api/catalog/search`, one-click add to Collection / Wanted.
 - `library/_components/SavedCard.tsx` — server, composes `Card` + `Chip` + compact `SaveControls`.
-- `journal/new/_components/PerfumePicker.tsx` — client, two datalists (house filter + perfume picker) + hidden `perfume_id`, validates that typed perfume exists.
+- `journal/new/_components/PerfumePicker.tsx` — client, async-search combobox → `/api/catalog/search` (matches perfume or house), keyboard-navigable results list, selected-chip UI, hidden `perfume_id`.
 - `perfumes/[manufacturer]/[slug]/_components/JournalSection.tsx` — server, inline new-entry form (pre-filled `perfume_id`, `entry_date`, `redirect_to`) + list of existing entries.
 
 ---

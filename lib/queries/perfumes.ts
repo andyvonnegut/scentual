@@ -59,6 +59,42 @@ export async function searchPerfumes(filters: BrowseFilters) {
   return data ?? [];
 }
 
+export async function searchCatalog(q: string, limit = 25) {
+  const trimmed = q.trim();
+  if (!trimmed) return [];
+  const db = await createClient();
+  const pattern = `%${trimmed}%`;
+
+  const selectShape =
+    "id, name, slug, manufacturer:manufacturers!inner(id, name, slug)";
+
+  const [byName, byHouse] = await Promise.all([
+    db
+      .from("perfumes")
+      .select(selectShape)
+      .ilike("name", pattern)
+      .order("name", { ascending: true })
+      .limit(limit),
+    db
+      .from("perfumes")
+      .select(selectShape)
+      .ilike("manufacturer.name", pattern)
+      .order("name", { ascending: true })
+      .limit(limit),
+  ]);
+
+  const seen = new Set<number>();
+  const merged: NonNullable<typeof byName.data> = [];
+  for (const row of [...(byName.data ?? []), ...(byHouse.data ?? [])]) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    merged.push(row);
+  }
+  return merged
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .slice(0, limit);
+}
+
 export async function getAllManufacturers() {
   const db = await createClient();
   const { data } = await db

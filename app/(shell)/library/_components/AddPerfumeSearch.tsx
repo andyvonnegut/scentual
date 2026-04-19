@@ -23,7 +23,7 @@ export function AddPerfumeSearch() {
     }
     setIsSearching(true);
     const res = await fetch(
-      `/api/library/search?q=${encodeURIComponent(value)}`,
+      `/api/catalog/search?q=${encodeURIComponent(value)}`,
       { cache: "no-store" },
     );
     if (res.ok) {

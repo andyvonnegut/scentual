@@ -73,16 +73,3 @@ export async function getAllThemeTags() {
   return data ?? [];
 }
 
-export async function searchCatalogForLibrary(q: string, limit = 20) {
-  if (!q.trim()) return [];
-  const db = await createClient();
-  const { data } = await db
-    .from("perfumes")
-    .select(
-      "id, name, slug, manufacturer:manufacturers!inner(id, name, slug)",
-    )
-    .ilike("name", `%${q}%`)
-    .order("name", { ascending: true })
-    .limit(limit);
-  return data ?? [];
-}

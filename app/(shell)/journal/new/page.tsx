@@ -2,16 +2,10 @@ import Link from "next/link";
 import { PageShell } from "@/components/brand/PageShell";
 import { SectionHeader } from "@/components/brand/SectionHeader";
 import { Card } from "@/components/brand/Card";
-import { getAllPerfumesForPicker } from "@/lib/queries/journal";
-import { getAllManufacturers } from "@/lib/queries/perfumes";
 import { createJournalEntry } from "@/app/actions/journal";
 import { PerfumePicker } from "./_components/PerfumePicker";
 
-export default async function NewJournalEntryPage() {
-  const [perfumes, houses] = await Promise.all([
-    getAllPerfumesForPicker(),
-    getAllManufacturers(),
-  ]);
+export default function NewJournalEntryPage() {
   const today = new Date().toISOString().slice(0, 10);
 
   return (
@@ -22,7 +16,7 @@ export default async function NewJournalEntryPage() {
           <form action={createJournalEntry} className="flex flex-col gap-5">
             <input type="hidden" name="redirect_to" value="/journal" />
 
-            <PerfumePicker perfumes={perfumes} houses={houses} />
+            <PerfumePicker />
 
             <label className="flex flex-col gap-2">
               <span className="micro-label">Entry date</span>
