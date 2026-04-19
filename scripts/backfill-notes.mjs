@@ -6,6 +6,25 @@ import { extractNotesForRetailer } from "../lib/scrape/notes.mjs";
 
 const SUPPORTED_RETAILERS = new Set(["ministryofscent", "luckyscent"]);
 
+async function mapWithConcurrency(items, concurrency, fn) {
+  const results = new Array(items.length);
+  let index = 0;
+
+  async function worker() {
+    while (index < items.length) {
+      const current = index;
+      index++;
+      results[current] = await fn(items[current], current);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => worker()),
+  );
+
+  return results;
+}
+
 function parseRetailerArg(argv) {
   const retailerArg = argv.find((arg) => arg.startsWith("--retailer="));
   if (!retailerArg) return null;
@@ -56,6 +75,7 @@ async function run() {
   };
 
   const pageSize = 100;
+  const concurrency = 12;
   for (let from = 0; ; from += pageSize) {
     let query = db
       .from("perfume_listings")
@@ -79,7 +99,7 @@ async function run() {
     if (error) throw error;
     if (!listings || listings.length === 0) break;
 
-    for (const listing of listings) {
+    await mapWithConcurrency(listings, concurrency, async (listing) => {
       summary.processed++;
 
       const retailer = Array.isArray(listing.retailer)
@@ -89,7 +109,7 @@ async function run() {
 
       if (!retailerSlug || !SUPPORTED_RETAILERS.has(retailerSlug)) {
         summary.skipped++;
-        continue;
+        return;
       }
 
       try {
@@ -112,7 +132,14 @@ async function run() {
           );
         }
       }
-    }
+
+      const processed = summary.processed;
+      if (processed % 100 === 0) {
+        console.log(
+          `[backfill-notes] processed=${processed} synced=${summary.synced} failed=${summary.failed} skipped=${summary.skipped}`,
+        );
+      }
+    });
   }
 
   summary.rebuild = await rebuildCanonicalNotes(db);
