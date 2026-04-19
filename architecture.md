@@ -149,12 +149,12 @@ Read-only, server-only. Grouped by domain:
 - `normalizeStockStatus` — enum map from raw string + availability boolean to `in_stock | out_of_stock | low_stock | unavailable | unknown`.
 
 ### Note extraction + mirror rebuild
-- **`notes.mjs`** — shared note extraction + cleanup helpers. Minimal cleanup only: trim punctuation, collapse whitespace, lowercase for storage, preserve source phrases otherwise. When a source writes the final list item as `, and amber`, the parser treats that trailing `, and` as a normal comma delimiter so it stores `amber` instead of `and amber`.
+- **`notes.mjs`** — shared note extraction + cleanup helpers. Notes are only accepted from explicit DOM-bound note sections; broad page-text fallback is intentionally disabled. Cleanup trims punctuation, preserves valid source phrases, rejects structural junk / marketing copy, avoids splitting commas inside parentheses, and treats a trailing `, and amber` like a normal comma delimiter so it stores `amber` instead of `and amber`.
 - **`note-sync.mjs`** — exact listing-level note sync (`perfume_source_notes`) plus canonical note rebuild across active listings. Rebuild deletes stale inactive listing note rows, repopulates `source_notes` and `perfume_notes`, then prunes unused rows from `notes`.
 
 ### Source adapters
-- **`ministryofscent.ts`** — Shopify REST `/products.json?limit=250&page=N`. Parses the explicit labeled notes block from `body_html`.
-- **`luckyscent.ts`** — Shopify Hydrogen Storefront GraphQL (`/api/2024-01/graphql.json`), cursor-pagination at 100/page, plus bounded-concurrency product-page fetches to parse the rendered `Fragrance Notes` list. Size comes from variant `selectedOptions` where `name.toLowerCase() === "size"`. Placeholder products (vendor = `Marketing` or empty `descriptionHtml`) are dropped — LuckyScent exposes these in GraphQL but their public URLs 404.
+- **`ministryofscent.ts`** — Shopify REST `/products.json?limit=250&page=N`. Parses explicit labeled note blocks from `body_html` and stops at subsequent labeled sections such as `FYI`, so store copy does not bleed into note rows.
+- **`luckyscent.ts`** — Shopify Hydrogen Storefront GraphQL (`/api/2024-01/graphql.json`), cursor-pagination at 100/page, plus bounded-concurrency product-page fetches to parse the rendered `Fragrance Notes` list. Size comes from variant `selectedOptions` where `name.toLowerCase() === "size"`. Placeholder products (vendor = `Marketing` or empty `descriptionHtml`) are dropped — LuckyScent exposes these in GraphQL but their public URLs 404. If a page has no explicit note block, the scraper stores no notes rather than inferring them from hydration payload or other copy.
 
 ### Ingestion (`ingest.ts`)
 `ingestOne(ctx, scraped, counts)` steps:
@@ -171,7 +171,7 @@ Read-only, server-only. Grouped by domain:
 `runScrape(sourceSlug, runType)` creates a `scrape_runs` row (`status='running'`), loops `scraper.crawl()` calling `ingestOne`, runs stale deactivation, rebuilds canonical note tables, then finalizes the run row with counts and `succeeded`/`failed` + `error_summary`.
 
 ### Backfill
-- **`scripts/backfill-notes.mjs`** — one-off repair script for exact canonical-note mirroring. Reads active listings from Supabase, parses notes from stored Ministry of Scent HTML or live LuckyScent product pages, syncs listing note rows, then runs `rebuildCanonicalNotes`. Optional scope: `--retailer=ministryofscent|luckyscent`.
+- **`scripts/backfill-notes.mjs`** — one-off repair script for exact canonical-note mirroring. Reads active listings from Supabase, parses notes from stored Ministry of Scent HTML or live LuckyScent product pages, syncs listing note rows, then runs `rebuildCanonicalNotes`. Optional scope: `--retailer=ministryofscent|luckyscent`; `--suspicious-only` limits work to active listings whose current note rows match the parser’s junk-pattern detector.
 
 ### Cron schedule (`vercel.json`)
 - `ministryofscent` — `17 3 * * *` (03:17 UTC)
