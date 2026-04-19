@@ -19,7 +19,7 @@ export default async function Home() {
         <header className="flex flex-col gap-6 pt-8 pb-4">
           <span className="micro-label">Scentual</span>
           <h1 className="font-display text-6xl md:text-7xl leading-[0.95] tracking-tight text-[color:var(--text)] max-w-3xl">
-            An archive of scent.
+            Lauren&apos;s personal archive of scent.
           </h1>
         </header>
 
