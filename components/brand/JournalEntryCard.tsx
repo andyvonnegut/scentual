@@ -169,7 +169,7 @@ export function JournalEntryCard({
             {perfume && (
               <Link
                 href={`/perfumes/${perfume.manufacturer?.slug ?? ""}/${perfume.slug}`}
-                className="text-xs text-[color:var(--text-soft)] hover:text-[color:var(--accent-strong)]"
+                className="text-sm text-[color:var(--text-soft)] hover:text-[color:var(--accent-strong)]"
               >
                 {perfume.manufacturer?.name} · {perfume.name} ↗
               </Link>
