@@ -5,24 +5,15 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Deployment workflow
 
-Do not assume `https://scentual.vercel.app/` reflects the current working branch.
-
-For now, every deploy must follow this order:
-1. Push the work branch first so Vercel creates or updates a Preview deployment.
-2. Verify the Preview deployment passes and shows the intended app behavior.
-3. Only then promote the change to `main` and push `main` so production updates.
-4. Verify production at `https://scentual.vercel.app/` after the `main` deploy is ready.
-
-Do not push straight to `main` without a passing Preview unless the user explicitly says to bypass this flow.
+Always push directly to `main`. Production is `https://scentual.vercel.app/`. Do not create work branches, do not wait for Preview verification, do not ask for visual confirmation before promoting — just commit to `main` and push.
 
 Unless the user explicitly asks for local-only work, docs-only exploration, or no deploy, do not stop at code changes. Finish the request end-to-end:
 1. make the requested changes
 2. update `architecture.md` if the change affects architecture, routes, schema, queries, scrapers, design tokens, env, or config
-3. commit the intended files
-4. push the work branch and verify the Preview deployment
-5. promote the verified commit to `main`, push `main`, and verify production
+3. commit the intended files on `main`
+4. push `main` so production updates
 
-Treat commit + full deployment as part of completing the request, not as an optional follow-up step.
+Treat commit + push as part of completing the request, not as an optional follow-up step.
 <!-- END:nextjs-agent-rules -->
 
 # Keep `architecture.md` current
