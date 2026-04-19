@@ -45,6 +45,7 @@ export function TagTypeahead({
     q
       ? available.find((suggestion) => suggestion.name.toLowerCase() === q) ?? null
       : null;
+  const firstFilteredMatch = filtered[0] ?? null;
   const clampedActiveIndex = Math.min(
     activeIndex,
     Math.max(filtered.length - 1, 0),
@@ -90,6 +91,8 @@ export function TagTypeahead({
         submit(filtered[clampedActiveIndex].name);
       } else if (exactMatch) {
         submit(exactMatch.name);
+      } else if (firstFilteredMatch) {
+        submit(firstFilteredMatch.name);
       } else {
         submit();
       }

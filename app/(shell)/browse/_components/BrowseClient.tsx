@@ -215,6 +215,7 @@ function NotesCombobox({
       ? available.find((option) => option.name.toLowerCase() === normalizedQuery) ??
         null
       : null;
+  const firstFilteredMatch = filtered[0] ?? null;
   const clampedActiveIndex = Math.min(
     activeIndex,
     Math.max(filtered.length - 1, 0),
@@ -329,6 +330,10 @@ function NotesCombobox({
                 event.preventDefault();
                 if (open && hasExplicitSelection && filtered[clampedActiveIndex]) {
                   pickExact(filtered[clampedActiveIndex]);
+                } else if (exactMatch) {
+                  pickExact(exactMatch);
+                } else if (firstFilteredMatch) {
+                  pickExact(firstFilteredMatch);
                 } else {
                   pickText();
                 }
