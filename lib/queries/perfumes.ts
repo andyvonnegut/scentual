@@ -106,11 +106,22 @@ export async function getAllManufacturers() {
 
 export async function getAllNotes() {
   const db = await createClient();
-  const { data } = await db
-    .from("notes")
-    .select("id, name, slug")
-    .order("name", { ascending: true });
-  return data ?? [];
+  const pageSize = 1000;
+  const notes: { id: number; name: string; slug: string }[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await db
+      .from("notes")
+      .select("id, name, slug")
+      .order("name", { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) break;
+    if (!data || data.length === 0) break;
+    notes.push(...data);
+    if (data.length < pageSize) break;
+  }
+
+  return notes;
 }
 
 export async function getPerfumeByManufacturerAndSlug(

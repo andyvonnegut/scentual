@@ -37,7 +37,7 @@ All main pages live in the `(shell)` route group, which provides a sticky header
 Two rails: **Recently added** and **Recently updated** (6 perfumes each). Empty-state hints at running the Ministry of Scent ingest. Data: `getRecentPerfumes`, `getRecentlyUpdatedPerfumes` run in parallel.
 
 ### `/browse` — Catalog (`app/(shell)/browse/page.tsx`)
-Server-rendered search. GET form with three filters: `q` (name ilike), `manufacturer` (slug), `note` (slug). Up to 120 results. Each card shows perfume name, house link, and up to 6 store notes as `store` chips. Data: `searchPerfumes`, plus `getAllManufacturers` / `getAllNotes` for the filter dropdowns.
+Server-rendered search. GET form with three filters: `q` (name ilike), `manufacturer` (slug), `note` (slug). Up to 120 results. Each card shows perfume name, house link, and up to 6 store notes as `store` chips. Data: `searchPerfumes`, plus `getAllManufacturers` / `getAllNotes` for the filter dropdowns. `getAllNotes` paginates the full canonical note vocabulary instead of relying on Supabase's default 1,000-row page.
 
 ### `/browse/manufacturers/[slug]` — House page
 All perfumes from one manufacturer. Data: `getManufacturerBySlug` → `getPerfumesByManufacturer`.
