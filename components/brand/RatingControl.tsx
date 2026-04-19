@@ -71,7 +71,7 @@ export function RatingControl({
                 "p-1 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--bg)]",
               )}
             >
-              <Puff filled={isFilled} size={puffSize} />
+              <BottleSpray filled={isFilled} size={puffSize} />
             </button>
           );
         })}
@@ -89,7 +89,12 @@ export function RatingControl({
   );
 }
 
-function Puff({ filled, size }: { filled: boolean; size: number }) {
+const BOTTLE_PATH =
+  "M 4.3 5.5 L 8.7 5.5 Q 9 5.5 9 5.8 L 9 7.5 L 7.5 7.5 L 7.5 9 L 10 11 L 10 18.5 Q 10 19.5 9 19.5 L 4 19.5 Q 3 19.5 3 18.5 L 3 11 L 5.5 9 L 5.5 7.5 L 4 7.5 L 4 5.8 Q 4 5.5 4.3 5.5 Z";
+const CLOUD_PATH =
+  "M 11.6 8.6 C 10.5 8.6 10.5 7 11.8 6.8 C 11.8 5.5 13 5 14 5.6 C 14.5 3.6 17 3.6 17.8 5.1 C 19 4.6 20 5.6 19.8 7 C 21 7.5 20 9 18.5 8.6 L 11.6 8.6 Z";
+
+function BottleSpray({ filled, size }: { filled: boolean; size: number }) {
   if (filled) {
     return (
       <svg
@@ -99,13 +104,10 @@ function Puff({ filled, size }: { filled: boolean; size: number }) {
         aria-hidden="true"
         className="text-[color:var(--accent)] transition-colors duration-[160ms]"
       >
-        <path
-          d="M7.5 11.2A3.2 3.2 0 0 1 10.7 8a3.2 3.2 0 0 1 3-2 3.3 3.3 0 0 1 3.2 2.6 2.8 2.8 0 0 1 2.1 2.7 2.8 2.8 0 0 1-2.8 2.8H7.3A2.8 2.8 0 0 1 4.5 11a2.8 2.8 0 0 1 3-2.6z"
-          fill="currentColor"
-        />
-        <circle cx="9" cy="17.5" r="0.9" fill="currentColor" />
-        <circle cx="12.5" cy="19.2" r="0.8" fill="currentColor" />
-        <circle cx="15.8" cy="17.8" r="0.7" fill="currentColor" />
+        <path d={BOTTLE_PATH} fill="currentColor" />
+        <path d={CLOUD_PATH} fill="currentColor" />
+        <circle cx="10" cy="6.8" r="0.45" fill="currentColor" />
+        <circle cx="11" cy="7.3" r="0.35" fill="currentColor" />
       </svg>
     );
   }
@@ -117,12 +119,13 @@ function Puff({ filled, size }: { filled: boolean; size: number }) {
       aria-hidden="true"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.75"
+      strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
       className="text-[color:var(--text-soft)] transition-colors duration-[160ms] hover:text-[color:var(--accent)]"
     >
-      <path d="M3.5 13c2-2.4 4-2.4 6 0s4 2.4 6 0 4-2.4 5 0" />
+      <path d={BOTTLE_PATH} />
+      <path d={CLOUD_PATH} />
     </svg>
   );
 }

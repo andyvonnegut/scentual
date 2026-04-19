@@ -44,7 +44,7 @@ All perfumes from one manufacturer. Data: `getManufacturerBySlug` → `getPerfum
 
 ### `/perfumes/[manufacturer]/[slug]` — Perfume detail
 Two-column layout (1.1fr / 1fr on `md`+):
-- **Left:** big serif name, house link (sized `text-sm` uppercase label), `SaveControls`, `RatingControl` (1..5 spray-puff rating), personal tags (always shown — `Fragrance notes` and `Themes`, attachable even when the perfume isn't in Collection or Wanted), store-notes, source descriptions (per-retailer; no "open source" link here — it's on the availability row instead).
+- **Left:** big serif name, house link (sized `text-sm` uppercase label), `SaveControls`, `RatingControl` (1..5 perfume-bottle rating), personal tags (always shown — `Fragrance notes` and `Themes`, attachable even when the perfume isn't in Collection or Wanted), store-notes, source descriptions (per-retailer; no "open source" link here — it's on the availability row instead).
 - **Right aside (stacked):**
   - **Availability** (Card) — each active listing with its variants, current price (Intl.NumberFormat), size, stock-status chip, inactive badge. The retailer name is itself the "open source" link (`↗`).
   - **Journal** — "+ New journal entry" button that toggles an inline form (client component `NewJournalEntry`), followed by a **Past entries** list. Each past entry renders as its own bordered card with a left accent border to distinguish it from the new-entry affordance.
@@ -217,7 +217,7 @@ Small hand-rolled design system. No shadcn, no headless-ui.
 - **`Card.tsx`** — rounded, `bg-elevated`, soft shadow on hover.
 - **`Chip.tsx`** — CVA. Variants: `store` (read-only store notes), `fragrance-note` (accent-toned, for fragrance notes), `theme` (neutral, for theme tags). Sizes: `sm | md`.
 - **`SaveControls.tsx`** — *client.* Two toggle buttons (Collection / Wanted) with `useTransition`. `compact` variant for `SavedCard`.
-- **`RatingControl.tsx`** — *client.* 1..5 rating widget rendered as five spray-puff SVGs (filled pink plumes when selected, wispy `~` trails when empty). Hover-preview, click-to-clear (tapping the already-selected puff sets rating back to null), optimistic update with rollback on error via `useTransition`. Props: `perfumeId`, `initialRating`, `size ("sm" | "md")`, `showLabel`.
+- **`RatingControl.tsx`** — *client.* 1..5 rating widget rendered as five tiny-perfume-bottle-spraying-a-cloud SVGs (solid pink when selected, outline-only when empty). Hover-preview, click-to-clear (tapping the already-selected bottle sets rating back to null), optimistic update with rollback on error via `useTransition`. Props: `perfumeId`, `initialRating`, `size ("sm" | "md")`, `showLabel`.
 - **`TagTypeahead.tsx`** — *client.* Combobox input with a custom listbox dropdown of unattached tags (filtered by the typed query). Clicking a suggestion or pressing Enter on a highlighted suggestion commits it immediately; pressing Enter on unmatched free text commits the typed value. Attached tags render as removable pills. Variant prop: `fragrance-note | theme`.
 - **`PageShell.tsx`** — max-width 1240px wrapper.
 - **`SectionHeader.tsx`** — optional micro-label + `font-display` heading + optional description/children.
