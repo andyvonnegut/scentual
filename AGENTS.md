@@ -3,6 +3,10 @@
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 
+# Development rules - Worktrees
+
+There are multiple people working on this project at any given time.  ALWAYS use worktrees to partition your work.  If another worktree that conflicts with yours is pushed causing merge / pull conflicts, resolve the conflicts when you deploy.
+
 # Deployment workflow
 
 Always push directly to `main`. Production is `https://scentual.vercel.app/`. Do not create work branches, do not wait for Preview verification, do not ask for visual confirmation before promoting — just commit to `main` and push.
@@ -12,6 +16,7 @@ Unless the user explicitly asks for local-only work, docs-only exploration, or n
 2. update `architecture.md` if the change affects architecture, routes, schema, queries, scrapers, design tokens, env, or config
 3. commit the intended files on `main`
 4. push `main` so production updates
+5. complete any database migrations required to implement the work you did
 
 Treat commit + push as part of completing the request, not as an optional follow-up step.
 <!-- END:nextjs-agent-rules -->

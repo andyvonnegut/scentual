@@ -31,7 +31,7 @@ vercel.json               # Cron schedule
 
 ## Routes (what each page shows)
 
-All main pages live in the `(shell)` route group, which provides a sticky header (Scentual wordmark + Home / Browse / Collection / Journal) and a footer. The top-right nav now renders as pill tabs and highlights the active section; perfume detail pages map to **Browse**, and `/journal/new` maps to **Journal**.
+All main pages live in the `(shell)` route group, which provides a sticky header (Scentual wordmark + Home / Browse / Collection / Journal) and a footer. The top-right nav renders as plain text links; the active section is indicated by a bolder weight and the `accent-strong` color. Perfume detail pages map to **Browse**, and `/journal/new` maps to **Journal**.
 
 ### `/` — Home (`app/(shell)/page.tsx`)
 Two rails: **Recently added** and **Recently updated** (6 perfumes each). Empty-state hints at running the Ministry of Scent ingest. Data: `getRecentPerfumes`, `getRecentlyUpdatedPerfumes` run in parallel.
@@ -219,7 +219,7 @@ Small hand-rolled design system. No shadcn, no headless-ui.
 - **`TagTypeahead.tsx`** — *client.* Combobox input with a custom listbox dropdown of unattached tags (filtered by the typed query). Clicking a suggestion or pressing Enter on a highlighted suggestion commits it immediately; pressing Enter on unmatched free text commits the typed value. Attached tags render as removable pills. Variant prop: `fragrance-note | theme`.
 - **`PageShell.tsx`** — max-width 1240px wrapper.
 - **`SectionHeader.tsx`** — optional micro-label + `font-display` heading + optional description/children.
-- **`ShellNav.tsx`** — *client.* Pathname-aware shell navigation that renders the top-right pill tabs and highlights the active section, including section mapping for perfume detail and journal subpages.
+- **`ShellNav.tsx`** — *client.* Pathname-aware shell navigation rendered as plain text links; the active section is highlighted by semibold weight and the `accent-strong` color (no pill / background). Includes section mapping for perfume detail and journal subpages.
 - **`JournalEntryCard.tsx`** — *client.* Shared inline journal-entry viewer/editor used by the journal list and perfume detail page; supports edit, in-card delete confirmation, and route-aware refresh after mutations.
 
 Page-scoped components live under `app/(shell)/<route>/_components/`:

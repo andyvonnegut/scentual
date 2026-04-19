@@ -26,20 +26,19 @@ export function ShellNav() {
   const activeHref = getActiveHref(pathname);
 
   return (
-    <nav className="inline-flex flex-wrap self-start rounded-[var(--radius-pill)] border border-[color:var(--line)] bg-[color:var(--bg-elevated)] p-1">
+    <nav className="flex gap-1">
       {NAV.map((item) => {
         const isActive = item.href === activeHref;
-
         return (
           <Link
             key={item.href}
             href={item.href}
             aria-current={isActive ? "page" : undefined}
             className={cn(
-              "rounded-[var(--radius-pill)] px-4 py-1.5 text-sm transition-colors",
+              "rounded-[var(--radius-pill)] px-4 py-1.5 text-sm transition-colors hover:text-[color:var(--accent-strong)]",
               isActive
-                ? "bg-[color:var(--accent)] text-white"
-                : "text-[color:var(--text-soft)] hover:text-[color:var(--accent-strong)]",
+                ? "font-semibold text-[color:var(--accent-strong)]"
+                : "text-[color:var(--text-soft)]",
             )}
           >
             {item.label}
