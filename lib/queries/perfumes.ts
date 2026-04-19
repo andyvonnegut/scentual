@@ -1,4 +1,18 @@
 import { createClient } from "@/lib/supabase/server";
+import {
+  getBrowseTokens,
+  type BrowseFilters,
+  type BrowsePerfumeCard,
+  type BrowseSearchResponse,
+} from "@/lib/browse";
+
+const BROWSE_SELECT = `
+  id, name, slug, canonical_description,
+  manufacturer:manufacturers!inner(id, name, slug),
+  perfume_notes(
+    note:notes(id, name, slug)
+  )
+`;
 
 export async function getRecentPerfumes(limit = 12) {
   const db = await createClient();
@@ -24,39 +38,214 @@ export async function getRecentlyUpdatedPerfumes(limit = 12) {
   return data ?? [];
 }
 
-export interface BrowseFilters {
-  q?: string;
-  manufacturerSlug?: string;
-  noteSlug?: string;
-  limit?: number;
+type PerfumeIdRow = { id: number };
+type PerfumeNoteRow = { perfume_id: number };
+type PersonalPerfumeJoin =
+  | { perfume_id: number | null }
+  | { perfume_id: number | null }[]
+  | null;
+type PersonalTagRow = { personal_perfume: PersonalPerfumeJoin };
+
+function extractPerfumeId(join: PersonalPerfumeJoin) {
+  if (Array.isArray(join)) return join[0]?.perfume_id ?? null;
+  return join?.perfume_id ?? null;
 }
 
-export async function searchPerfumes(filters: BrowseFilters) {
+function intersectIdSets(sets: Set<number>[]) {
+  if (sets.length === 0) return new Set<number>();
+
+  const [first, ...rest] = [...sets].sort((a, b) => a.size - b.size);
+  const result = new Set(first);
+
+  for (const set of rest) {
+    for (const id of result) {
+      if (!set.has(id)) result.delete(id);
+    }
+  }
+
+  return result;
+}
+
+function rowsToIdSet(rows: PerfumeIdRow[] | PerfumeNoteRow[] | null | undefined) {
+  return new Set((rows ?? []).map((row) => ("id" in row ? row.id : row.perfume_id)));
+}
+
+function personalRowsToIdSet(rows: PersonalTagRow[] | null | undefined) {
+  const ids = new Set<number>();
+
+  for (const row of rows ?? []) {
+    const perfumeId = extractPerfumeId(row.personal_perfume);
+    if (perfumeId) ids.add(perfumeId);
+  }
+
+  return ids;
+}
+
+async function getPerfumeIdsForManufacturerSlug(manufacturerSlug: string) {
   const db = await createClient();
-  let query = db
+  const { data } = await db
     .from("perfumes")
+    .select("id, manufacturer:manufacturers!inner(slug)")
+    .eq("manufacturer.slug", manufacturerSlug);
+
+  return rowsToIdSet(data as PerfumeIdRow[] | null | undefined);
+}
+
+async function getPerfumeIdsForStoreNoteSlug(slug: string) {
+  const db = await createClient();
+  const { data } = await db
+    .from("perfume_notes")
+    .select("perfume_id, note:notes!inner(slug)")
+    .eq("note.slug", slug);
+
+  return rowsToIdSet(data as PerfumeNoteRow[] | null | undefined);
+}
+
+async function getPerfumeIdsForUserNoteSlug(slug: string) {
+  const db = await createClient();
+  const { data } = await db
+    .from("personal_perfume_user_fragrance_note_tags")
     .select(
       `
-      id, name, slug, canonical_description,
-      manufacturer:manufacturers!inner(id, name, slug),
-      perfume_notes${filters.noteSlug ? "!inner" : ""}(
-        note:notes${filters.noteSlug ? "!inner" : ""}(id, name, slug)
-      )
+      personal_perfume:personal_perfumes!inner(perfume_id),
+      user_fragrance_note_tag:user_fragrance_note_tags!inner(slug)
       `,
     )
+    .eq("user_fragrance_note_tag.slug", slug);
+
+  return personalRowsToIdSet(data as PersonalTagRow[] | null | undefined);
+}
+
+async function getPerfumeIdsForToken(token: string) {
+  const db = await createClient();
+  const pattern = `%${token}%`;
+  const [byName, byHouse, byStoreNote, byUserNote] = await Promise.all([
+    db.from("perfumes").select("id").ilike("name", pattern),
+    db
+      .from("perfumes")
+      .select("id, manufacturer:manufacturers!inner(name)")
+      .ilike("manufacturer.name", pattern),
+    db
+      .from("perfume_notes")
+      .select("perfume_id, note:notes!inner(name)")
+      .ilike("note.name", pattern),
+    db
+      .from("personal_perfume_user_fragrance_note_tags")
+      .select(
+        `
+        personal_perfume:personal_perfumes!inner(perfume_id),
+        user_fragrance_note_tag:user_fragrance_note_tags!inner(name)
+        `,
+      )
+      .ilike("user_fragrance_note_tag.name", pattern),
+  ]);
+
+  const ids = new Set<number>();
+
+  for (const id of rowsToIdSet(byName.data as PerfumeIdRow[] | null | undefined)) {
+    ids.add(id);
+  }
+  for (const id of rowsToIdSet(byHouse.data as PerfumeIdRow[] | null | undefined)) {
+    ids.add(id);
+  }
+  for (const id of rowsToIdSet(
+    byStoreNote.data as PerfumeNoteRow[] | null | undefined,
+  )) {
+    ids.add(id);
+  }
+  for (const id of personalRowsToIdSet(
+    byUserNote.data as PersonalTagRow[] | null | undefined,
+  )) {
+    ids.add(id);
+  }
+
+  return ids;
+}
+
+async function fetchBrowseRowsByIds(ids: number[], limit: number) {
+  const db = await createClient();
+  const { data } = await db
+    .from("perfumes")
+    .select(BROWSE_SELECT)
+    .in("id", ids)
     .order("name", { ascending: true })
-    .limit(filters.limit ?? 60);
+    .limit(limit);
 
-  if (filters.q) query = query.ilike("name", `%${filters.q}%`);
-  if (filters.manufacturerSlug) {
-    query = query.eq("manufacturer.slug", filters.manufacturerSlug);
-  }
-  if (filters.noteSlug) {
-    query = query.eq("perfume_notes.note.slug", filters.noteSlug);
+  return (data ?? []) as BrowsePerfumeCard[];
+}
+
+export async function browsePerfumes(
+  filters: BrowseFilters,
+): Promise<BrowseSearchResponse> {
+  const limit = filters.limit ?? 60;
+  const tokens = getBrowseTokens(filters.q);
+  const manufacturerSlug = filters.manufacturerSlug?.trim();
+  const notes = filters.notes ?? [];
+  const hasFilters =
+    tokens.length > 0 || Boolean(manufacturerSlug) || notes.length > 0;
+
+  if (!hasFilters) {
+    const db = await createClient();
+    const { data, count } = await db
+      .from("perfumes")
+      .select(BROWSE_SELECT, { count: "exact" })
+      .order("name", { ascending: true })
+      .limit(limit);
+
+    return {
+      total: count ?? 0,
+      results: (data ?? []) as BrowsePerfumeCard[],
+    };
   }
 
-  const { data } = await query;
-  return data ?? [];
+  if (manufacturerSlug && tokens.length === 0 && notes.length === 0) {
+    const db = await createClient();
+    const { data, count } = await db
+      .from("perfumes")
+      .select(BROWSE_SELECT, { count: "exact" })
+      .eq("manufacturer.slug", manufacturerSlug)
+      .order("name", { ascending: true })
+      .limit(limit);
+
+    return {
+      total: count ?? 0,
+      results: (data ?? []) as BrowsePerfumeCard[],
+    };
+  }
+
+  const constraintPromises: Promise<Set<number>>[] = [];
+
+  if (manufacturerSlug) {
+    constraintPromises.push(getPerfumeIdsForManufacturerSlug(manufacturerSlug));
+  }
+
+  for (const note of notes) {
+    constraintPromises.push(
+      note.source === "store"
+        ? getPerfumeIdsForStoreNoteSlug(note.slug)
+        : getPerfumeIdsForUserNoteSlug(note.slug),
+    );
+  }
+
+  for (const token of tokens) {
+    constraintPromises.push(getPerfumeIdsForToken(token));
+  }
+
+  const idSets = await Promise.all(constraintPromises);
+  if (idSets.some((set) => set.size === 0)) {
+    return { total: 0, results: [] };
+  }
+
+  const matchingIds = [...intersectIdSets(idSets)];
+  if (matchingIds.length === 0) {
+    return { total: 0, results: [] };
+  }
+
+  const results = await fetchBrowseRowsByIds(matchingIds, limit);
+  return {
+    total: matchingIds.length,
+    results,
+  };
 }
 
 export async function searchCatalog(q: string, limit = 25) {

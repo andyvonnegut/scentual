@@ -37,7 +37,12 @@ All main pages live in the `(shell)` route group, which provides a sticky header
 Two rails: **Recently added** and **Recently updated** (6 perfumes each). Empty-state hints at running the Ministry of Scent ingest. Data: `getRecentPerfumes`, `getRecentlyUpdatedPerfumes` run in parallel.
 
 ### `/browse` — Catalog (`app/(shell)/browse/page.tsx`)
-Server-rendered search. Header shows only **The catalog** with result-count copy, with no micro-label above it. GET form with three filters: `q` (name ilike), `manufacturer` (slug), `note` (slug). Up to 120 results. Each card shows perfume name, house link, and up to 6 store notes as `store` chips. Data: `searchPerfumes`, plus `getAllManufacturers` / `getAllNotes` for the filter dropdowns. `getAllNotes` paginates the full canonical note vocabulary instead of relying on Supabase's default 1,000-row page.
+Server-rendered shell plus a live client filter controller. Header shows only **The catalog** with result-count copy, with no micro-label above it. Controls update in real time with no submit button:
+- a single search line (`q`) that tokenizes whitespace and requires every typed word to match somewhere across perfume name, manufacturer name, canonical store notes, or personal fragrance-note tags
+- a single-select house combobox (`manufacturer=<slug>`)
+- a combined tag-style note picker using repeated `note=` params encoded as `store:<slug>` or `user:<slug>`; selected note chips are ANDed, so every chosen store note / personal note tag must be present
+
+The client updates the current URL with `window.history.replaceState` and fetches fresh results from `GET /api/catalog/browse`. The page still hydrates from the URL on first load/refresh. Up to 120 cards are rendered, with exact total counts shown when more matches exist. Each card shows perfume name, house link, and up to 6 canonical store notes as `store` chips. Data: `browsePerfumes`, `getAllManufacturers`, `getAllNotes`, and `getAllFragranceNoteTags`. `getAllNotes` paginates the full canonical note vocabulary instead of relying on Supabase's default 1,000-row page.
 
 ### `/browse/manufacturers/[slug]` — House page
 All perfumes from one manufacturer. Data: `getManufacturerBySlug` → `getPerfumesByManufacturer`.
@@ -100,6 +105,9 @@ Manual trigger for dev; do not expose in prod without gating.
 ### `GET /api/catalog/search?q=...` — catalog typeahead
 Returns up to 25 `{ id, name, slug, manufacturer: { id, name, slug } }` whose perfume name OR manufacturer name matches `q` (case-insensitive substring). Consumed by `AddPerfumeSearch` (library) and `PerfumePicker` (journal).
 
+### `GET /api/catalog/browse?q=...&manufacturer=...&note=store:...&note=user:...` — live browse filters
+Returns `{ total, results }` for the `/browse` live filter UI. `q` is whitespace-tokenized and each token must match somewhere across perfume name, manufacturer name, canonical store notes, or personal fragrance-note tags. `manufacturer` is an exact manufacturer slug filter. Repeated `note` params are exact-match AND filters, split by note source: canonical store notes (`store:<slug>`) and personal fragrance-note tags (`user:<slug>`).
+
 ---
 
 ## Data layer (`lib/`)
@@ -113,13 +121,13 @@ Returns up to 25 `{ id, name, slug, manufacturer: { id, name, slug } }` whose pe
 
 ### Queries (`lib/queries/`)
 Read-only, server-only. Grouped by domain:
-- **`perfumes.ts`**: `getRecentPerfumes`, `getRecentlyUpdatedPerfumes`, `searchPerfumes`, `searchCatalog`, `getAllManufacturers`, `getAllNotes`, `getPerfumeByManufacturerAndSlug`, `getPriceHistory`, `getStockHistory`, `getManufacturerBySlug`, `getPerfumesByManufacturer`.
+- **`perfumes.ts`**: `getRecentPerfumes`, `getRecentlyUpdatedPerfumes`, `browsePerfumes`, `searchCatalog`, `getAllManufacturers`, `getAllNotes`, `getPerfumeByManufacturerAndSlug`, `getPriceHistory`, `getStockHistory`, `getManufacturerBySlug`, `getPerfumesByManufacturer`.
 - **`library.ts`**: `LibraryFilter` type; `getSavedPerfumes(filter)`, `getPersonalPerfumeByPerfumeId`, `getAllFragranceNoteTags`, `getAllThemeTags`.
 - **`journal.ts`**: `listJournalEntries(perfumeId?)`, `listJournalEntriesForPerfume`.
 
 ### Data flow
 
-**Reads:** server component → `lib/queries/*` → server Supabase client (anon, RLS-gated, cookie-aware) → rendered HTML.
+**Reads:** server component → `lib/queries/*` → server Supabase client (anon, RLS-gated, cookie-aware) → rendered HTML. `/browse` is mixed: the page does an initial server read from URL params, then the client filter shell updates `window.history.replaceState` and fetches incremental result updates from `GET /api/catalog/browse`.
 
 **Writes:** client component → server action → service client (service role, RLS bypassed) → `revalidatePath("/", "layout")` → affected server pages re-render on next request. Client components use `useTransition` for optimistic UI.
 
@@ -225,6 +233,7 @@ Small hand-rolled design system. No shadcn, no headless-ui.
 - **`JournalEntryCard.tsx`** — *client.* Shared inline journal-entry viewer/editor used by the journal list and perfume detail page; supports edit, in-card delete confirmation, and route-aware refresh after mutations.
 
 Page-scoped components live under `app/(shell)/<route>/_components/`:
+- `browse/_components/BrowseClient.tsx` — client, local live-filter controller for `/browse`; owns the free-text search line, house combobox, combined store/user note combobox, URL syncing via `window.history.replaceState`, debounced fetches to `/api/catalog/browse`, and result rendering.
 - `collection/_components/AddPerfumeSearch.tsx` — client, typeahead → `/api/catalog/search`, one-click add to Collection / Wanted.
 - `library/_components/SavedCard.tsx` — server, composes `Card` + `Chip` + compact `SaveControls`.
 - `journal/new/_components/PerfumePicker.tsx` — client, async-search combobox → `/api/catalog/search` (matches perfume or house), keyboard-navigable results list, selected-chip UI, hidden `perfume_id`.
