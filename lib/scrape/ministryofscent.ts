@@ -1,5 +1,6 @@
 import type { ScrapedPerfume, ScrapedVariant, SourceScraper } from "./types";
 import { extractNotesFromMinistryOfScentHtml } from "./notes.mjs";
+import { isSetOrKit } from "./is-set";
 import {
   normalizeStockStatus,
   parsePrice,
@@ -59,6 +60,20 @@ function toScraped(p: ShopifyProduct): ScrapedPerfume | null {
       currentStockRaw: v.available ? "available" : "sold out",
     };
   });
+
+  if (
+    isSetOrKit({
+      productType: p.product_type,
+      title: p.title,
+      vendor: p.vendor,
+      variants,
+    })
+  ) {
+    console.info(
+      `[ministryofscent] skipping set/kit: ${p.vendor} — ${p.title} (product_type=${p.product_type || "?"})`,
+    );
+    return null;
+  }
 
   return {
     manufacturerName: p.vendor.trim(),

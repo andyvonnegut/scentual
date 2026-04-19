@@ -155,6 +155,7 @@ Read-only, server-only. Grouped by domain:
 ### Source adapters
 - **`ministryofscent.ts`** — Shopify REST `/products.json?limit=250&page=N`. Parses explicit labeled note blocks from `body_html` and stops at subsequent labeled sections such as `FYI`, so store copy does not bleed into note rows.
 - **`luckyscent.ts`** — Shopify Hydrogen Storefront GraphQL (`/api/2024-01/graphql.json`), cursor-pagination at 100/page, plus bounded-concurrency product-page fetches to parse the rendered `Fragrance Notes` list. Size comes from variant `selectedOptions` where `name.toLowerCase() === "size"`. Placeholder products (vendor = `Marketing` or empty `descriptionHtml`) are dropped — LuckyScent exposes these in GraphQL but their public URLs 404. If a page has no explicit note block, the scraper stores no notes rather than inferring them from hydration payload or other copy.
+- **Set/kit guard (`is-set.ts`)** — both adapters call `isSetOrKit` after building variants and drop the product if it matches. The detector checks Shopify `product_type`, vendor, title, and variant `sizeLabel` against keyword patterns (`gift set`, `discovery kit/set`, `sample set/pack`, `sampler`, `bundle`, `coffret`, `kit`, `gift with purchase`, `gwp`), a piece-count pattern (`10-piece`, `6 piece`), and a multi-vial size pattern (`6x 2ml`). This filters discovery kits, gift sets, and LuckyScent's `Luckyscent Gifts with Purchase` vendor before they reach ingest.
 
 ### Ingestion (`ingest.ts`)
 `ingestOne(ctx, scraped, counts)` steps:
@@ -172,6 +173,7 @@ Read-only, server-only. Grouped by domain:
 
 ### Backfill
 - **`scripts/backfill-notes.mjs`** — one-off repair script for exact canonical-note mirroring. Reads active listings from Supabase, parses notes from stored Ministry of Scent HTML or live LuckyScent product pages, syncs listing note rows, then runs `rebuildCanonicalNotes`. Optional scope: `--retailer=ministryofscent|luckyscent`; `--suspicious-only` limits work to active listings whose current note rows match the parser’s junk-pattern detector.
+- **`scripts/purge-set-perfumes.ts`** — one-off cleanup for perfume rows ingested before the `isSetOrKit` guard existed. Applies the same detector (plus a slug-level safety net for `*-discovery-kit`, `*-gift-set`, `*-piece-*`, and manufacturers like `luckyscent-gifts-with-purchase`) to every `perfumes` row and deletes matches. Dry-run by default; pass `--apply` to actually delete. Deletion cascades through listings, variants, price/stock history, and note tables via FK `on delete cascade`.
 
 ### Cron schedule (`vercel.json`)
 - `ministryofscent` — `17 3 * * *` (03:17 UTC)

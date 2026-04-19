@@ -1,5 +1,6 @@
 import type { ScrapedPerfume, ScrapedVariant, SourceScraper } from "./types";
 import { extractNotesFromLuckyscentPageHtml } from "./notes.mjs";
+import { isSetOrKit } from "./is-set";
 import {
   normalizeStockStatus,
   parsePrice,
@@ -150,6 +151,20 @@ async function toScraped(p: GqlProduct): Promise<ScrapedPerfume | null> {
   });
 
   if (variants.length === 0) return null;
+
+  if (
+    isSetOrKit({
+      productType: p.productType,
+      title: p.title,
+      vendor: p.vendor,
+      variants,
+    })
+  ) {
+    console.info(
+      `[luckyscent] skipping set/kit: ${p.vendor} — ${p.title} (productType=${p.productType ?? "?"})`,
+    );
+    return null;
+  }
 
   const notes = await fetchProductNotes(p.handle);
 
