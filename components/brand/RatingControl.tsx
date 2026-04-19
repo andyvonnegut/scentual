@@ -90,10 +90,12 @@ export function RatingControl({
 }
 
 const BOTTLE_PATH =
-  "M 14 4 Q 15.3 4 15.3 5.2 Q 15 5.8 14.5 6 L 14.5 6.8 Q 18.5 7.5 18.5 12 Q 18 16 17 20 Q 17 21 16 21.5 Q 17 21.5 17 22 L 11 22 Q 11 21.5 12 21.5 Q 11 21 11 20 Q 10 16 9.5 12 Q 9.5 7.5 13.5 6.8 L 13.5 6 Q 13 5.8 12.7 5.2 Q 12.7 4 14 4 Z";
-const TUBE_PATH = "M 12.5 5 C 3 2, 0 12, 5.5 17.3";
+  "M 10 1.8 C 11.5 1.8, 11.5 4, 10.5 4.2 L 10.5 5.5 L 11.5 5.5 L 11.5 7 L 10.5 7 C 14 8, 14.5 13, 13 18 C 12.5 20, 11 21, 11 21.7 L 12.5 21.7 L 12.5 22.5 L 7.5 22.5 L 7.5 21.7 L 9 21.7 C 9 21, 7.5 20, 7 18 C 5.5 13, 6 8, 9.5 7 L 8.5 7 L 8.5 5.5 L 9.5 5.5 L 9.5 4.2 C 8.5 4, 8.5 1.8, 10 1.8 Z";
+const TUBE_PATH = "M 8.5 6.3 C 4 2, 0 11, 2.5 17";
 const CLOUD_PATH =
-  "M 15.5 4 C 15.5 1.8, 17.2 0.8, 18.3 2 C 19.3 0.3, 21 0.5, 21.3 2.3 C 22.5 1.8, 23.3 3, 23 4.7 C 23.8 5.2, 23.2 7.3, 21.6 6.8 C 21.3 8, 19 8, 18.7 6.3 C 18.2 7, 16.6 7, 16.2 5.7 C 15.3 5.7, 15.2 4.6, 15.5 4 Z";
+  "M 15 3.5 Q 14.8 1.8, 16 1.7 Q 16.7 0.5, 17.7 1.2 Q 18.5 0.3, 19.5 1.3 Q 20.3 0.5, 21 1.8 Q 22 1.5, 22 3 Q 22.7 3.5, 22 4.5 Q 22.5 5.8, 21.2 5.5 Q 20.5 6.5, 19.2 5.8 Q 18 6.8, 17 5.5 Q 15.5 6.3, 15 5 Q 14.3 4.3, 15 3.5 Z";
+const SPRAY_PATH =
+  "M 11.5 2.3 L 14.5 2.7 M 11.5 2.8 L 14.8 3.5 M 11.5 3.4 L 14.5 4.3";
 
 function BottleSpray({ filled, size }: { filled: boolean; size: number }) {
   if (filled) {
@@ -106,7 +108,7 @@ function BottleSpray({ filled, size }: { filled: boolean; size: number }) {
         className="text-[color:var(--accent)] transition-colors duration-[160ms]"
       >
         <path d={BOTTLE_PATH} fill="currentColor" />
-        <ellipse cx="4" cy="18.5" rx="2" ry="1.3" fill="currentColor" />
+        <ellipse cx="2.5" cy="18" rx="1.5" ry="1" fill="currentColor" />
         <path
           d={TUBE_PATH}
           fill="none"
@@ -115,6 +117,13 @@ function BottleSpray({ filled, size }: { filled: boolean; size: number }) {
           strokeLinecap="round"
         />
         <path d={CLOUD_PATH} fill="currentColor" />
+        <path
+          d={SPRAY_PATH}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1"
+          strokeLinecap="round"
+        />
       </svg>
     );
   }
@@ -132,9 +141,10 @@ function BottleSpray({ filled, size }: { filled: boolean; size: number }) {
       className="text-[color:var(--text-soft)] transition-colors duration-[160ms] hover:text-[color:var(--accent)]"
     >
       <path d={BOTTLE_PATH} />
-      <ellipse cx="4" cy="18.5" rx="2" ry="1.3" />
+      <ellipse cx="2.5" cy="18" rx="1.5" ry="1" />
       <path d={TUBE_PATH} />
       <path d={CLOUD_PATH} />
+      <path d={SPRAY_PATH} strokeWidth="1" />
     </svg>
   );
 }
