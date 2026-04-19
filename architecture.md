@@ -44,8 +44,11 @@ All perfumes from one manufacturer. Data: `getManufacturerBySlug` → `getPerfum
 
 ### `/perfumes/[manufacturer]/[slug]` — Perfume detail
 Two-column layout (1.1fr / 1fr on `md`+):
-- **Left:** big serif name, house link, `SaveControls`, personal tags (if saved), canonical notes, store-notes, source descriptions.
-- **Right (Card):** **Availability** — each active listing with its variants, current price (Intl.NumberFormat), size, stock-status chip, inactive badge. Below the aside: **Recent price & stock changes** — a single consolidated Card with one time-sorted table (newest 20 rows) merging both price and stock changes across all variants. Per-SKU price and stock events within a 5s window are merged into one row; each row has four columns — date, retailer chip (`variant="store"`) + size, price (with change_type suffix unless `initial`), and stock status (em-dash when that side didn't change). Below that: **Journal** section (inline "add entry" form + existing entries for this perfume).
+- **Left:** big serif name, house link (sized `text-sm` uppercase label), `SaveControls`, personal tags (if saved), store-notes, source descriptions (per-retailer; no "open source" link here — it's on the availability row instead).
+- **Right aside (stacked):**
+  - **Availability** (Card) — each active listing with its variants, current price (Intl.NumberFormat), size, stock-status chip, inactive badge. The retailer name is itself the "open source" link (`↗`).
+  - **Journal** — "+ New journal entry" button that toggles an inline form (client component `NewJournalEntry`), followed by a **Past entries** list. Each past entry renders as its own bordered card with a left accent border to distinguish it from the new-entry affordance.
+- **Below the two columns:** **Recent price & stock changes** — a single consolidated full-width Card with one time-sorted table (newest 20 rows) merging both price and stock changes across all variants. Per-SKU price and stock events within a 5s window are merged into one row; each row has four columns — date, retailer chip (`variant="store"`) + size, price (with change_type suffix unless `initial`), and stock status (em-dash when that side didn't change).
 
 Data: `getPerfumeByManufacturerAndSlug` returns the full tree (manufacturer, perfume_notes, perfume_listings → retailer + variants, journal_entries, personal_perfumes). Then `getPriceHistory(variantId)` / `getStockHistory(variantId)` are fanned out in parallel for every variant.
 
@@ -220,7 +223,8 @@ Page-scoped components live under `app/(shell)/<route>/_components/`:
 - `library/_components/AddPerfumeSearch.tsx` — client, typeahead → `/api/catalog/search`, one-click add to Collection / Wanted.
 - `library/_components/SavedCard.tsx` — server, composes `Card` + `Chip` + compact `SaveControls`.
 - `journal/new/_components/PerfumePicker.tsx` — client, async-search combobox → `/api/catalog/search` (matches perfume or house), keyboard-navigable results list, selected-chip UI, hidden `perfume_id`.
-- `perfumes/[manufacturer]/[slug]/_components/JournalSection.tsx` — server, inline new-entry form (pre-filled `perfume_id`, `entry_date`, `redirect_to`) + list of existing entries.
+- `perfumes/[manufacturer]/[slug]/_components/JournalSection.tsx` — server, renders the `NewJournalEntry` toggle and the past-entries list (bordered cards with a left accent stripe). Lives in the right aside under the Availability card.
+- `perfumes/[manufacturer]/[slug]/_components/NewJournalEntry.tsx` — client, renders a "+ New journal entry" button that toggles an inline form (pre-filled `perfume_id`, `redirect_to`, editable `entry_date`). Submits to `createJournalEntry`.
 
 ---
 

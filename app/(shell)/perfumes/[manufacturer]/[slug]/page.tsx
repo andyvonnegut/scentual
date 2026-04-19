@@ -154,7 +154,7 @@ export default async function PerfumeDetailPage({
           <div className="flex flex-col gap-4">
             <Link
               href={`/browse/manufacturers/${perfume.manufacturer?.slug ?? ""}`}
-              className="micro-label text-[color:var(--text-soft)] hover:text-[color:var(--accent-strong)]"
+              className="text-sm font-medium uppercase tracking-[0.12em] text-[color:var(--text-soft)] hover:text-[color:var(--accent-strong)]"
             >
               {perfume.manufacturer?.name ?? "—"}
             </Link>
@@ -208,21 +208,9 @@ export default async function PerfumeDetailPage({
 
           {perfume.perfume_listings?.map((listing) => (
             <div key={listing.id} className="flex flex-col gap-3">
-              <div className="flex items-baseline justify-between">
-                <span className="micro-label">
-                  {listing.retailer?.name ?? "Source"}
-                </span>
-                {listing.source_url && (
-                  <a
-                    href={listing.source_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-[color:var(--text-soft)] hover:text-[color:var(--accent-strong)]"
-                  >
-                    Open source ↗
-                  </a>
-                )}
-              </div>
+              <span className="micro-label">
+                {listing.retailer?.name ?? "Source"}
+              </span>
               {listing.source_description && (
                 <div
                   className="prose prose-sm max-w-none text-[color:var(--text-soft)] leading-relaxed [&_p]:my-2 [&_li]:my-1"
@@ -242,9 +230,20 @@ export default async function PerfumeDetailPage({
                   key={listing.id}
                   className="flex flex-col gap-3 border-b border-[color:var(--line)] pb-3 last:border-b-0 last:pb-0"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-3">
                     <span className="font-medium text-sm">
-                      {listing.retailer?.name ?? "—"}
+                      {listing.source_url ? (
+                        <a
+                          href={listing.source_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-[color:var(--accent-strong)]"
+                        >
+                          {listing.retailer?.name ?? "—"} ↗
+                        </a>
+                      ) : (
+                        listing.retailer?.name ?? "—"
+                      )}
                     </span>
                     {!listing.active && (
                       <Chip variant="theme" size="sm">
@@ -290,6 +289,8 @@ export default async function PerfumeDetailPage({
               )}
             </div>
           </Card>
+
+          <JournalSection perfumeId={perfume.id} returnPath={returnPath} />
         </aside>
       </div>
 
@@ -298,10 +299,6 @@ export default async function PerfumeDetailPage({
         <Card>
           <ChangesTable rows={changeRows} />
         </Card>
-      </section>
-
-      <section className="mt-16">
-        <JournalSection perfumeId={perfume.id} returnPath={returnPath} />
       </section>
     </PageShell>
   );
