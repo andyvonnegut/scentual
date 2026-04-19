@@ -138,7 +138,7 @@ Read-only, server-only. Grouped by domain:
 
 ### Source adapters
 - **`ministryofscent.ts`** — Shopify REST `/products.json?limit=250&page=N`. Parses `body_html` with cheerio to extract notes (prefers an explicit "Notes:" label, falls back to the first `<ul>`).
-- **`luckyscent.ts`** — Shopify Hydrogen Storefront GraphQL (`/api/2024-01/graphql.json`), cursor-pagination at 100/page. Size comes from variant `selectedOptions` where `name.toLowerCase() === "size"`.
+- **`luckyscent.ts`** — Shopify Hydrogen Storefront GraphQL (`/api/2024-01/graphql.json`), cursor-pagination at 100/page. Size comes from variant `selectedOptions` where `name.toLowerCase() === "size"`. Placeholder products (vendor = `Marketing` or empty `descriptionHtml`) are dropped — LuckyScent exposes these in GraphQL but their public URLs 404.
 
 ### Ingestion (`ingest.ts`)
 `ingestOne(ctx, scraped, counts)` steps:

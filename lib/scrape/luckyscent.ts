@@ -97,6 +97,13 @@ function pickSizeLabel(v: GqlVariant): string {
 function toScraped(p: GqlProduct): ScrapedPerfume | null {
   if (!p.vendor || !p.title) return null;
 
+  // Skip LuckyScent's placeholder/duplicate products. These share Shopify
+  // product ids with real listings but have junk metadata — vendor set to
+  // "Marketing", an empty descriptionHtml, and a 404ing public URL. Real
+  // perfume pages always have vendor = the brand name and non-empty copy.
+  if (p.vendor.trim().toLowerCase() === "marketing") return null;
+  if (!p.descriptionHtml || p.descriptionHtml.trim() === "") return null;
+
   const variants: ScrapedVariant[] = p.variants.edges.map(({ node: v }) => {
     const sizeLabel = pickSizeLabel(v);
     return {
