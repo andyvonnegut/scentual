@@ -9,7 +9,7 @@ export async function getSavedPerfumes(filter: LibraryFilter = "all") {
     .select(
       `
       id, in_collection, in_wanted,
-      size_owned_text, personal_note,
+      size_owned_text, personal_note, rating,
       added_to_collection_at, added_to_wanted_at, updated_at,
       perfume:perfumes!inner(
         id, name, slug,

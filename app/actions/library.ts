@@ -23,9 +23,11 @@ async function hasPersonalData(
   existing: {
     size_owned_text?: string | null;
     personal_note?: string | null;
+    rating?: number | null;
   } | null,
 ): Promise<boolean> {
   if (existing?.size_owned_text || existing?.personal_note) return true;
+  if (existing?.rating != null) return true;
   const [fragCount, themeCount] = await Promise.all([
     db
       .from("personal_perfume_user_fragrance_note_tags")
@@ -117,5 +119,40 @@ export async function updatePersonalMeta(
 ) {
   const db = createServiceClient();
   await db.from("personal_perfumes").update(patch).eq("perfume_id", perfumeId);
+  revalidatePath("/", "layout");
+}
+
+export async function setRating(perfumeId: number, rating: number | null) {
+  if (rating !== null && (rating < 1 || rating > 5 || !Number.isInteger(rating))) {
+    throw new Error("Rating must be an integer between 1 and 5, or null");
+  }
+
+  const { db, existing } = await upsertPersonal(perfumeId);
+
+  if (!existing) {
+    if (rating === null) return;
+    await db.from("personal_perfumes").insert({
+      perfume_id: perfumeId,
+      in_collection: false,
+      in_wanted: false,
+      rating,
+    });
+  } else {
+    const shouldDelete =
+      rating === null &&
+      !existing.in_collection &&
+      !existing.in_wanted &&
+      !(await hasPersonalData(db, existing.id, { ...existing, rating: null }));
+
+    if (shouldDelete) {
+      await db.from("personal_perfumes").delete().eq("id", existing.id);
+    } else {
+      await db
+        .from("personal_perfumes")
+        .update({ rating })
+        .eq("id", existing.id);
+    }
+  }
+
   revalidatePath("/", "layout");
 }

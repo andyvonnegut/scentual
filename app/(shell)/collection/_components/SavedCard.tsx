@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Card } from "@/components/brand/Card";
 import { Chip } from "@/components/brand/Chip";
 import { SaveControls } from "@/components/brand/SaveControls";
+import { RatingControl } from "@/components/brand/RatingControl";
 
 type Ref = { id: number; name: string; slug: string };
 
@@ -11,6 +12,7 @@ type Saved = {
   in_wanted: boolean;
   size_owned_text: string | null;
   personal_note: string | null;
+  rating: number | null;
   perfume: {
     id: number;
     name: string;
@@ -107,6 +109,13 @@ export function SavedCard({ saved }: { saved: Saved }) {
             ))}
           </div>
         )}
+
+        <RatingControl
+          perfumeId={perfume.id}
+          initialRating={saved.rating}
+          size="sm"
+          showLabel={false}
+        />
 
         <SaveControls
           perfumeId={perfume.id}

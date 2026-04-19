@@ -440,6 +440,7 @@ export type Database = {
           in_wanted: boolean;
           size_owned_text: string | null;
           personal_note: string | null;
+          rating: number | null;
           added_to_collection_at: string | null;
           added_to_wanted_at: string | null;
           updated_at: string;
@@ -451,6 +452,7 @@ export type Database = {
           in_wanted?: boolean;
           size_owned_text?: string | null;
           personal_note?: string | null;
+          rating?: number | null;
           added_to_collection_at?: string | null;
           added_to_wanted_at?: string | null;
           updated_at?: string;
@@ -462,6 +464,7 @@ export type Database = {
           in_wanted?: boolean;
           size_owned_text?: string | null;
           personal_note?: string | null;
+          rating?: number | null;
           added_to_collection_at?: string | null;
           added_to_wanted_at?: string | null;
           updated_at?: string;
