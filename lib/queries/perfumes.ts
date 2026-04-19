@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import {
   getBrowseTokens,
+  isBrowseExactNoteFilter,
   type BrowseFilters,
   type BrowsePerfumeCard,
   type BrowseSearchResponse,
@@ -125,6 +126,42 @@ async function getPerfumeIdsForNoteSlug(slug: string) {
   return new Set([...storeIds, ...personalIds]);
 }
 
+async function getPerfumeIdsForStoreNoteQuery(query: string) {
+  const db = await createClient();
+  const pattern = `%${query}%`;
+  const { data } = await db
+    .from("perfume_notes")
+    .select("perfume_id, note:notes!inner(name)")
+    .ilike("note.name", pattern);
+
+  return rowsToIdSet(data as PerfumeNoteRow[] | null | undefined);
+}
+
+async function getPerfumeIdsForPersonalNoteQuery(query: string) {
+  const db = await createClient();
+  const pattern = `%${query}%`;
+  const { data } = await db
+    .from("personal_perfume_notes")
+    .select(
+      `
+      personal_perfume:personal_perfumes!inner(perfume_id),
+      note:notes!inner(name)
+      `,
+    )
+    .ilike("note.name", pattern);
+
+  return personalRowsToIdSet(data as PersonalNoteRow[] | null | undefined);
+}
+
+async function getPerfumeIdsForNoteQuery(query: string) {
+  const [storeIds, personalIds] = await Promise.all([
+    getPerfumeIdsForStoreNoteQuery(query),
+    getPerfumeIdsForPersonalNoteQuery(query),
+  ]);
+
+  return new Set([...storeIds, ...personalIds]);
+}
+
 async function getPerfumeIdsForToken(token: string) {
   const db = await createClient();
   const pattern = `%${token}%`;
@@ -229,7 +266,11 @@ export async function browsePerfumes(
   }
 
   for (const note of notes) {
-    constraintPromises.push(getPerfumeIdsForNoteSlug(note.slug));
+    constraintPromises.push(
+      isBrowseExactNoteFilter(note)
+        ? getPerfumeIdsForNoteSlug(note.slug)
+        : getPerfumeIdsForNoteQuery(note.query),
+    );
   }
 
   for (const token of tokens) {

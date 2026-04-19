@@ -4,10 +4,19 @@ export interface BrowseManufacturerOption {
   slug: string;
 }
 
-export interface BrowseNoteFilter {
+export interface BrowseExactNoteFilter {
+  type: "exact";
   slug: string;
   name?: string;
 }
+
+export interface BrowseTextNoteFilter {
+  type: "text";
+  query: string;
+  name?: string;
+}
+
+export type BrowseNoteFilter = BrowseExactNoteFilter | BrowseTextNoteFilter;
 
 export interface BrowseNoteOption {
   id: number;
@@ -47,7 +56,23 @@ export interface BrowseSearchResponse {
   results: BrowsePerfumeCard[];
 }
 
-export function parseBrowseNoteParam(value: string | null | undefined) {
+export function isBrowseExactNoteFilter(
+  value: BrowseNoteFilter,
+): value is BrowseExactNoteFilter {
+  return value.type === "exact";
+}
+
+export function normalizeBrowseNoteQuery(value: string | null | undefined) {
+  return value?.trim() ?? "";
+}
+
+export function getBrowseNoteFilterKey(note: BrowseNoteFilter) {
+  return isBrowseExactNoteFilter(note)
+    ? `note:${note.slug}`
+    : `note_q:${note.query.toLowerCase()}`;
+}
+
+export function parseBrowseExactNoteParam(value: string | null | undefined) {
   if (!value) return null;
 
   const trimmed = value.trim();
@@ -57,21 +82,40 @@ export function parseBrowseNoteParam(value: string | null | undefined) {
   if (legacyMatch) {
     const slug = legacyMatch[2]?.trim();
     if (!slug) return null;
-    return { slug } satisfies BrowseNoteFilter;
+    return { type: "exact", slug } satisfies BrowseExactNoteFilter;
   }
 
-  return { slug: trimmed } satisfies BrowseNoteFilter;
+  return { type: "exact", slug: trimmed } satisfies BrowseExactNoteFilter;
 }
 
-export function parseBrowseNoteParams(values: string[] | undefined) {
+export function parseBrowseTextNoteParam(value: string | null | undefined) {
+  const query = normalizeBrowseNoteQuery(value);
+  if (!query) return null;
+  return { type: "text", query, name: query } satisfies BrowseTextNoteFilter;
+}
+
+export function parseBrowseNoteParams(
+  exactValues: string[] | undefined,
+  textValues: string[] | undefined = [],
+) {
   const seen = new Set<string>();
   const parsed: BrowseNoteFilter[] = [];
 
-  for (const value of values ?? []) {
-    const note = parseBrowseNoteParam(value);
+  for (const value of exactValues ?? []) {
+    const note = parseBrowseExactNoteParam(value);
     if (!note) continue;
-    if (seen.has(note.slug)) continue;
-    seen.add(note.slug);
+    const key = getBrowseNoteFilterKey(note);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    parsed.push(note);
+  }
+
+  for (const value of textValues) {
+    const note = parseBrowseTextNoteParam(value);
+    if (!note) continue;
+    const key = getBrowseNoteFilterKey(note);
+    if (seen.has(key)) continue;
+    seen.add(key);
     parsed.push(note);
   }
 
@@ -101,9 +145,14 @@ export function buildBrowseSearchParams(filters: BrowseFilterState) {
 
   const seen = new Set<string>();
   for (const note of filters.notes ?? []) {
-    if (seen.has(note.slug)) continue;
-    seen.add(note.slug);
-    params.append("note", note.slug);
+    const key = getBrowseNoteFilterKey(note);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (isBrowseExactNoteFilter(note)) {
+      params.append("note", note.slug);
+    } else {
+      params.append("note_q", note.query);
+    }
   }
 
   return params;

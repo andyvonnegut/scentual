@@ -7,6 +7,8 @@ import { Chip } from "@/components/brand/Chip";
 import { SectionHeader } from "@/components/brand/SectionHeader";
 import {
   buildBrowseSearchParams,
+  getBrowseNoteFilterKey,
+  isBrowseExactNoteFilter,
   normalizeBrowseQuery,
   type BrowseFilterState,
   type BrowseManufacturerOption,
@@ -193,30 +195,65 @@ function NotesCombobox({
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [hasExplicitSelection, setHasExplicitSelection] = useState(false);
   const rootRef = useCloseOnOutsideClick<HTMLDivElement>(setOpen);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const listId = useId();
 
-  const selectedKeys = new Set(selected.map((note) => note.slug));
-  const available = options.filter((option) => !selectedKeys.has(option.slug));
-  const filtered = query.trim()
+  const normalizedQuery = query.trim().toLowerCase();
+  const selectedExactSlugs = new Set(
+    selected.filter(isBrowseExactNoteFilter).map((note) => note.slug),
+  );
+  const available = options.filter((option) => !selectedExactSlugs.has(option.slug));
+  const filtered = normalizedQuery
     ? available.filter((option) =>
-        option.name.toLowerCase().includes(query.trim().toLowerCase()),
+        option.name.toLowerCase().includes(normalizedQuery),
       )
     : available;
+  const exactMatch =
+    normalizedQuery
+      ? available.find((option) => option.name.toLowerCase() === normalizedQuery) ??
+        null
+      : null;
   const clampedActiveIndex = Math.min(
     activeIndex,
     Math.max(filtered.length - 1, 0),
   );
   const showList = open && filtered.length > 0;
-  const showEmpty = open && query.trim().length > 0 && filtered.length === 0;
+  const showEmpty = open && normalizedQuery.length > 0 && filtered.length === 0;
 
-  const pick = (option: BrowseNoteOption) => {
-    onChange([...selected, { slug: option.slug, name: option.name }]);
+  const resetInput = () => {
     setQuery("");
     setActiveIndex(0);
     setOpen(false);
+    setHasExplicitSelection(false);
     inputRef.current?.focus();
+  };
+
+  const appendFilter = (nextFilter: BrowseNoteFilter) => {
+    const nextKey = getBrowseNoteFilterKey(nextFilter);
+    if (selected.some((note) => getBrowseNoteFilterKey(note) === nextKey)) {
+      resetInput();
+      return;
+    }
+
+    onChange([...selected, nextFilter]);
+    resetInput();
+  };
+
+  const pickExact = (option: BrowseNoteOption) => {
+    appendFilter({ type: "exact", slug: option.slug, name: option.name });
+  };
+
+  const pickText = (value = query) => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    const resolvedName = exactMatch?.name ?? trimmed;
+    appendFilter({
+      type: "text",
+      query: resolvedName,
+      name: resolvedName,
+    });
   };
 
   return (
@@ -225,14 +262,16 @@ function NotesCombobox({
 
       <div className="flex flex-wrap items-center gap-1.5">
         {selected.map((note) => {
-          const key = note.slug;
+          const key = getBrowseNoteFilterKey(note);
           return (
             <button
               key={key}
               type="button"
               onClick={() =>
                 onChange(
-                  selected.filter((selectedNote) => selectedNote.slug !== key),
+                  selected.filter(
+                    (selectedNote) => getBrowseNoteFilterKey(selectedNote) !== key,
+                  ),
                 )
               }
               className={cn(
@@ -240,7 +279,11 @@ function NotesCombobox({
               )}
               title="Remove note filter"
             >
-              <span>{note.name ?? note.slug}</span>
+              <span>
+                {isBrowseExactNoteFilter(note)
+                  ? (note.name ?? note.slug)
+                  : (note.name ?? note.query)}
+              </span>
               <span className="opacity-60">×</span>
             </button>
           );
@@ -258,30 +301,40 @@ function NotesCombobox({
             onChange={(event) => {
               setQuery(event.target.value);
               setActiveIndex(0);
+              setHasExplicitSelection(false);
               setOpen(true);
             }}
-            onFocus={() => setOpen(true)}
+            onFocus={() => {
+              setOpen(true);
+              setHasExplicitSelection(false);
+            }}
             onKeyDown={(event) => {
               if (!open && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
                 setOpen(true);
+                setHasExplicitSelection(true);
                 return;
               }
 
               if (event.key === "ArrowDown") {
                 event.preventDefault();
+                setHasExplicitSelection(true);
                 setActiveIndex((index) =>
                   Math.min(index + 1, Math.max(filtered.length - 1, 0)),
                 );
               } else if (event.key === "ArrowUp") {
                 event.preventDefault();
+                setHasExplicitSelection(true);
                 setActiveIndex((index) => Math.max(index - 1, 0));
               } else if (event.key === "Enter") {
-                if (filtered[clampedActiveIndex]) {
-                  event.preventDefault();
-                  pick(filtered[clampedActiveIndex]);
+                event.preventDefault();
+                if (open && hasExplicitSelection && filtered[clampedActiveIndex]) {
+                  pickExact(filtered[clampedActiveIndex]);
+                } else {
+                  pickText();
                 }
               } else if (event.key === "Escape") {
                 setOpen(false);
+                setHasExplicitSelection(false);
               }
             }}
             placeholder="Type to add note filters..."
@@ -297,9 +350,12 @@ function NotesCombobox({
                   aria-selected={index === clampedActiveIndex}
                   onMouseDown={(event) => {
                     event.preventDefault();
-                    pick(option);
+                    pickExact(option);
                   }}
-                  onMouseEnter={() => setActiveIndex(index)}
+                  onMouseEnter={() => {
+                    setActiveIndex(index);
+                    setHasExplicitSelection(true);
+                  }}
                   className={cn(
                     "flex cursor-pointer items-center justify-between gap-4 px-4 py-2.5",
                     index === clampedActiveIndex
@@ -312,7 +368,7 @@ function NotesCombobox({
               ))}
               {showEmpty && (
                 <li className="px-4 py-3 text-xs text-[color:var(--text-soft)]">
-                  No notes match that search.
+                  Press Enter to add “{query.trim()}” as a note-word filter.
                 </li>
               )}
             </ul>

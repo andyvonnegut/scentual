@@ -5,7 +5,10 @@ import { browsePerfumes } from "@/lib/queries/perfumes";
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
-  const notes = parseBrowseNoteParams(req.nextUrl.searchParams.getAll("note"));
+  const notes = parseBrowseNoteParams(
+    req.nextUrl.searchParams.getAll("note"),
+    req.nextUrl.searchParams.getAll("note_q"),
+  );
   const data = await browsePerfumes({
     q: req.nextUrl.searchParams.get("q") ?? "",
     manufacturerSlug: req.nextUrl.searchParams.get("manufacturer") ?? "",

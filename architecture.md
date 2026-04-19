@@ -40,7 +40,10 @@ Two rails: **Recently added** and **Recently updated** (6 perfumes each). Empty-
 Server-rendered shell plus a live client filter controller. Header shows only **The catalog** with result-count copy, with no micro-label above it. Controls update in real time with no submit button:
 - a single search line (`q`) that tokenizes whitespace and requires every typed word to match somewhere across perfume name, manufacturer name, canonical notes attached by the store, or canonical notes attached by the user
 - a single-select house combobox (`manufacturer=<slug>`)
-- a deduplicated canonical-note picker using repeated `note=<slug>` params; selected note chips are ANDed, so every chosen note must be present either as a store note or as a personal note attachment
+- a mixed-mode notes picker:
+  - explicit dropdown picks create exact canonical-note chips via repeated `note=<slug>` params
+  - pressing `Enter` on typed text creates a broad note-word chip via repeated `note_q=<text>` params; these chips match any canonical note name containing that text (for example `cedar` matches `Virginia Cedar` and `Virginia Cedarwood`)
+  - all selected note chips are ANDed, so every exact or broad note filter must match either a store note or a personal note attachment
 
 The client updates the current URL with `window.history.replaceState` and fetches fresh results from `GET /api/catalog/browse`. The page still hydrates from the URL on first load/refresh. Up to 120 cards are rendered, with exact total counts shown when more matches exist. Each card shows perfume name, house link, and up to 6 canonical store notes as `store` chips. Data: `browsePerfumes`, `getAllManufacturers`, and `getAllNotes`. `getAllNotes` paginates the full canonical note vocabulary instead of relying on Supabase's default 1,000-row page.
 
@@ -106,7 +109,7 @@ Manual trigger for dev; do not expose in prod without gating.
 Returns up to 25 `{ id, name, slug, manufacturer: { id, name, slug } }` whose perfume name OR manufacturer name matches `q` (case-insensitive substring). Consumed by `AddPerfumeSearch` (library) and `PerfumePicker` (journal).
 
 ### `GET /api/catalog/browse?q=...&manufacturer=...&note=...` — live browse filters
-Returns `{ total, results }` for the `/browse` live filter UI. `q` is whitespace-tokenized and each token must match somewhere across perfume name, manufacturer name, store-note attachments, or personal-note attachments, all through the canonical `notes` table. `manufacturer` is an exact manufacturer slug filter. Repeated `note` params are exact-match AND filters on canonical note slugs. Legacy `store:<slug>` / `user:<slug>` URLs are still parsed and normalized.
+Returns `{ total, results }` for the `/browse` live filter UI. `q` is whitespace-tokenized and each token must match somewhere across perfume name, manufacturer name, store-note attachments, or personal-note attachments, all through the canonical `notes` table. `manufacturer` is an exact manufacturer slug filter. Repeated `note` params are exact-match AND filters on canonical note slugs. Repeated `note_q` params are broad note-word AND filters using case-insensitive `note.name contains <text>` semantics across both store and personal note attachments. Legacy `store:<slug>` / `user:<slug>` URLs are still parsed and normalized as exact-note filters.
 
 ---
 
@@ -227,14 +230,14 @@ Small hand-rolled design system. No shadcn, no headless-ui.
 - **`Chip.tsx`** — CVA. Variants: `store` (read-only store notes), `fragrance-note` (accent-toned, for fragrance notes), `theme` (neutral, for theme tags). Sizes: `sm | md`.
 - **`SaveControls.tsx`** — *client.* Two toggle buttons (Collection / Wanted) with `useTransition`. `compact` variant for `SavedCard`.
 - **`RatingControl.tsx`** — *client.* 1..5 rating widget rendered as five old-fashioned-atomizer SVGs (curvy vase bottle, ball stopper, rubber tube arcing out to a squeeze bulb on the left, cloud of scent rising above — solid pink when selected, outline-only when empty). Hover-preview, click-to-clear (tapping the already-selected atomizer sets rating back to null), optimistic update with rollback on error via `useTransition`. Props: `perfumeId`, `initialRating`, `size ("sm" | "md")`, `showLabel`.
-- **`TagTypeahead.tsx`** — *client.* Combobox input with a custom listbox dropdown of unattached tags (filtered by the typed query). Clicking a suggestion or pressing Enter on a highlighted suggestion commits it immediately; pressing Enter on unmatched free text commits the typed value. Attached tags render as removable pills. Variant prop: `fragrance-note | theme`.
+- **`TagTypeahead.tsx`** — *client.* Combobox input with a custom listbox dropdown of unattached tags (filtered by the typed query). Clicking a suggestion or explicitly navigating to one with the keyboard commits that suggestion; otherwise `Enter` first resolves a case-insensitive exact suggestion-name match before falling back to the raw typed value. Attached tags render as removable pills. Variant prop: `fragrance-note | theme`.
 - **`PageShell.tsx`** — max-width 1240px wrapper.
 - **`SectionHeader.tsx`** — optional micro-label + `font-display` heading + optional description/children.
 - **`ShellNav.tsx`** — *client.* Pathname-aware shell navigation rendered as plain text links; the active section is highlighted by semibold weight and the `accent-strong` color (no pill / background). Includes section mapping for perfume detail and journal subpages.
 - **`JournalEntryCard.tsx`** — *client.* Shared inline journal-entry viewer/editor used by the journal list and perfume detail page; supports edit, in-card delete confirmation, and route-aware refresh after mutations.
 
 Page-scoped components live under `app/(shell)/<route>/_components/`:
-- `browse/_components/BrowseClient.tsx` — client, local live-filter controller for `/browse`; owns the free-text search line, house combobox, deduplicated canonical-note combobox, URL syncing via `window.history.replaceState`, debounced fetches to `/api/catalog/browse`, and result rendering.
+- `browse/_components/BrowseClient.tsx` — client, local live-filter controller for `/browse`; owns the free-text search line, house combobox, mixed exact/broad note-filter combobox, URL syncing via `window.history.replaceState`, debounced fetches to `/api/catalog/browse`, and result rendering. Explicit note dropdown picks stay exact; typed-enter note chips become broad note-word filters.
 - `collection/_components/AddPerfumeSearch.tsx` — client, typeahead → `/api/catalog/search`, one-click add to Collection / Wanted.
 - `library/_components/SavedCard.tsx` — server, composes `Card` + `Chip` + compact `SaveControls`.
 - `journal/new/_components/PerfumePicker.tsx` — client, async-search combobox → `/api/catalog/search` (matches perfume or house), keyboard-navigable results list, selected-chip UI, hidden `perfume_id`.

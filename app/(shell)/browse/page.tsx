@@ -11,6 +11,7 @@ type SearchParams = Promise<{
   q?: string;
   manufacturer?: string;
   note?: string | string[];
+  note_q?: string | string[];
 }>;
 
 export default async function BrowsePage({
@@ -21,6 +22,7 @@ export default async function BrowsePage({
   const params = await searchParams;
   const selectedNotes = parseBrowseNoteParams(
     typeof params.note === "string" ? [params.note] : params.note,
+    typeof params.note_q === "string" ? [params.note_q] : params.note_q,
   );
 
   const [initialResponse, manufacturers, noteOptions] = await Promise.all([
@@ -40,7 +42,10 @@ export default async function BrowsePage({
 
   const hydratedNotes = selectedNotes.map((note) => ({
     ...note,
-    name: noteNameByKey.get(note.slug) ?? note.slug,
+    name:
+      note.type === "exact"
+        ? (noteNameByKey.get(note.slug) ?? note.name ?? note.slug)
+        : (note.name ?? note.query),
   }));
 
   return (

@@ -27,6 +27,7 @@ export function TagTypeahead({
   const [value, setValue] = useState("");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [hasExplicitSelection, setHasExplicitSelection] = useState(false);
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -40,6 +41,10 @@ export function TagTypeahead({
   const filtered = q
     ? available.filter((s) => s.name.toLowerCase().includes(q))
     : available;
+  const exactMatch =
+    q
+      ? available.find((suggestion) => suggestion.name.toLowerCase() === q) ?? null
+      : null;
   const clampedActiveIndex = Math.min(
     activeIndex,
     Math.max(filtered.length - 1, 0),
@@ -60,29 +65,37 @@ export function TagTypeahead({
     startTransition(() => onAdd(v));
     setValue("");
     setOpen(false);
+    setActiveIndex(0);
+    setHasExplicitSelection(false);
     inputRef.current?.focus();
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
       setOpen(true);
+      setHasExplicitSelection(true);
       return;
     }
     if (e.key === "ArrowDown") {
       e.preventDefault();
+      setHasExplicitSelection(true);
       setActiveIndex((i) => Math.min(i + 1, Math.max(filtered.length - 1, 0)));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
+      setHasExplicitSelection(true);
       setActiveIndex((i) => Math.max(i - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (open && filtered[clampedActiveIndex]) {
+      if (open && hasExplicitSelection && filtered[clampedActiveIndex]) {
         submit(filtered[clampedActiveIndex].name);
+      } else if (exactMatch) {
+        submit(exactMatch.name);
       } else {
         submit();
       }
     } else if (e.key === "Escape") {
       setOpen(false);
+      setHasExplicitSelection(false);
     }
   };
 
@@ -127,9 +140,13 @@ export function TagTypeahead({
             onChange={(e) => {
               setValue(e.target.value);
               setActiveIndex(0);
+              setHasExplicitSelection(false);
               setOpen(true);
             }}
-            onFocus={() => setOpen(true)}
+            onFocus={() => {
+              setOpen(true);
+              setHasExplicitSelection(false);
+            }}
             onKeyDown={onKeyDown}
             placeholder={placeholder ?? "Type to add…"}
             className="h-8 w-full rounded-full border border-[color:var(--line)] bg-[color:var(--bg-elevated)] px-3 text-xs focus:border-[color:var(--accent)] focus:outline-none"
@@ -149,7 +166,10 @@ export function TagTypeahead({
                     e.preventDefault();
                     submit(s.name);
                   }}
-                  onMouseEnter={() => setActiveIndex(i)}
+                  onMouseEnter={() => {
+                    setActiveIndex(i);
+                    setHasExplicitSelection(true);
+                  }}
                   className={`cursor-pointer px-3 py-2 text-xs ${
                     i === clampedActiveIndex
                       ? "bg-[color:var(--surface)]"
