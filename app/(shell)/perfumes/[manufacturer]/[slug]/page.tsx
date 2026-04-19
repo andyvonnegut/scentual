@@ -99,28 +99,52 @@ export default async function PerfumeDetailPage({
   ]);
 
   const changeRows: ChangeRow[] = [];
+  const MERGE_WINDOW_MS = 5000;
   allVariantIds.forEach((id, i) => {
     const info = variantInfo.get(id)!;
+    type Event =
+      | { date: string; kind: "price"; changeType: string; value: string }
+      | { date: string; kind: "stock"; changeType: string; value: string };
+    const events: Event[] = [];
     for (const h of priceHistories[i]) {
-      changeRows.push({
+      events.push({
         date: h.observed_at,
         kind: "price",
-        retailer: info.retailer,
-        size: info.size,
         changeType: h.change_type,
         value: formatPrice(Number(h.price), h.currency),
       });
     }
     for (const h of stockHistories[i]) {
-      changeRows.push({
+      events.push({
         date: h.observed_at,
         kind: "stock",
-        retailer: info.retailer,
-        size: info.size,
         changeType: h.change_type,
         value: formatStock(h.stock_status, h.stock_raw),
       });
     }
+    events.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    const variantRows: ChangeRow[] = [];
+    for (const e of events) {
+      const last = variantRows[variantRows.length - 1];
+      const field = e.kind === "price" ? "price" : "stock";
+      const canMerge =
+        last &&
+        !last[field] &&
+        Math.abs(
+          new Date(last.date).getTime() - new Date(e.date).getTime(),
+        ) <= MERGE_WINDOW_MS;
+      if (canMerge) {
+        last[field] = { value: e.value, changeType: e.changeType };
+      } else {
+        variantRows.push({
+          date: e.date,
+          retailer: info.retailer,
+          size: info.size,
+          [field]: { value: e.value, changeType: e.changeType },
+        });
+      }
+    }
+    changeRows.push(...variantRows);
   });
 
   return (
@@ -283,13 +307,13 @@ export default async function PerfumeDetailPage({
   );
 }
 
+type ChangeCell = { value: string; changeType: string };
 type ChangeRow = {
   date: string;
-  kind: "price" | "stock";
   retailer: string;
   size: string;
-  changeType: string;
-  value: string;
+  price?: ChangeCell;
+  stock?: ChangeCell;
 };
 
 function ChangesTable({ rows }: { rows: ChangeRow[] }) {
@@ -311,26 +335,42 @@ function ChangesTable({ rows }: { rows: ChangeRow[] }) {
             key={i}
             className="border-b border-[color:var(--line)] last:border-b-0"
           >
-            <td className="py-2 pr-3 text-[color:var(--text-soft)] whitespace-nowrap">
+            <td className="py-2 pr-3 text-[color:var(--text-soft)] whitespace-nowrap align-top">
               {formatDate(row.date)}
             </td>
-            <td className="py-2 pr-3">
+            <td className="py-2 pr-3 align-top">
               <span className="inline-flex flex-wrap items-center gap-1.5">
                 <Chip variant="store" size="sm">
                   {row.retailer}
                 </Chip>
-                <Chip
-                  variant={row.kind === "price" ? "fragrance-note" : "theme"}
-                  size="sm"
-                >
-                  {row.kind}
-                </Chip>
+                {row.size && (
+                  <span className="text-[color:var(--text-soft)]">
+                    {row.size}
+                  </span>
+                )}
               </span>
             </td>
-            <td className="py-2 pr-3 text-[color:var(--text-soft)]">
-              {[row.size, row.changeType].filter(Boolean).join(" · ")}
+            <td className="py-2 pr-3 text-right font-medium align-top whitespace-nowrap">
+              {row.price ? (
+                <span>
+                  {row.price.value}
+                  {row.price.changeType && row.price.changeType !== "initial" && (
+                    <span className="ml-1 text-xs font-normal text-[color:var(--text-soft)]">
+                      · {row.price.changeType}
+                    </span>
+                  )}
+                </span>
+              ) : (
+                <span className="text-[color:var(--text-soft)]">—</span>
+              )}
             </td>
-            <td className="py-2 text-right font-medium">{row.value}</td>
+            <td className="py-2 text-right font-medium align-top whitespace-nowrap">
+              {row.stock ? (
+                <span>{row.stock.value}</span>
+              ) : (
+                <span className="text-[color:var(--text-soft)]">—</span>
+              )}
+            </td>
           </tr>
         ))}
       </tbody>
