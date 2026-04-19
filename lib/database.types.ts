@@ -479,29 +479,41 @@ export type Database = {
           },
         ];
       };
-      user_fragrance_note_tags: {
+      personal_perfume_notes: {
         Row: {
           id: number;
-          name: string;
-          slug: string;
+          personal_perfume_id: number;
+          note_id: number;
           created_at: string;
-          updated_at: string;
         };
         Insert: {
           id?: number;
-          name: string;
-          slug: string;
+          personal_perfume_id: number;
+          note_id: number;
           created_at?: string;
-          updated_at?: string;
         };
         Update: {
           id?: number;
-          name?: string;
-          slug?: string;
+          personal_perfume_id?: number;
+          note_id?: number;
           created_at?: string;
-          updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "personal_perfume_notes_personal_perfume_id_fkey";
+            columns: ["personal_perfume_id"];
+            isOneToOne: false;
+            referencedRelation: "personal_perfumes";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "personal_perfume_notes_note_id_fkey";
+            columns: ["note_id"];
+            isOneToOne: false;
+            referencedRelation: "notes";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       theme_tags: {
         Row: {
@@ -526,39 +538,6 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
-      };
-      personal_perfume_user_fragrance_note_tags: {
-        Row: {
-          id: number;
-          personal_perfume_id: number;
-          user_fragrance_note_tag_id: number;
-        };
-        Insert: {
-          id?: number;
-          personal_perfume_id: number;
-          user_fragrance_note_tag_id: number;
-        };
-        Update: {
-          id?: number;
-          personal_perfume_id?: number;
-          user_fragrance_note_tag_id?: number;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "personal_perfume_user_fragrance_note_tags_personal_perfume_id_fkey";
-            columns: ["personal_perfume_id"];
-            isOneToOne: false;
-            referencedRelation: "personal_perfumes";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "personal_perfume_user_fragrance_note_tags_user_fragrance_note_tag_id_fkey";
-            columns: ["user_fragrance_note_tag_id"];
-            isOneToOne: false;
-            referencedRelation: "user_fragrance_note_tags";
-            referencedColumns: ["id"];
-          },
-        ];
       };
       personal_perfume_theme_tags: {
         Row: {

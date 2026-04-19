@@ -1,9 +1,5 @@
 import { PageShell } from "@/components/brand/PageShell";
-import {
-  parseBrowseNoteParams,
-  type BrowseNoteOption,
-} from "@/lib/browse";
-import { getAllFragranceNoteTags } from "@/lib/queries/library";
+import { parseBrowseNoteParams } from "@/lib/browse";
 import {
   browsePerfumes,
   getAllManufacturers,
@@ -27,8 +23,7 @@ export default async function BrowsePage({
     typeof params.note === "string" ? [params.note] : params.note,
   );
 
-  const [initialResponse, manufacturers, storeNotes, userNotes] =
-    await Promise.all([
+  const [initialResponse, manufacturers, noteOptions] = await Promise.all([
       browsePerfumes({
         q: params.q,
         manufacturerSlug: params.manufacturer,
@@ -37,25 +32,15 @@ export default async function BrowsePage({
       }),
       getAllManufacturers(),
       getAllNotes(),
-      getAllFragranceNoteTags(),
     ]);
 
-  const noteOptions: BrowseNoteOption[] = [
-    ...storeNotes.map((note) => ({ ...note, source: "store" as const })),
-    ...userNotes.map((note) => ({ ...note, source: "user" as const })),
-  ].sort((a, b) => {
-    const byName = a.name.localeCompare(b.name);
-    if (byName !== 0) return byName;
-    return a.source.localeCompare(b.source);
-  });
-
   const noteNameByKey = new Map(
-    noteOptions.map((note) => [`${note.source}:${note.slug}`, note.name]),
+    noteOptions.map((note) => [note.slug, note.name]),
   );
 
   const hydratedNotes = selectedNotes.map((note) => ({
     ...note,
-    name: noteNameByKey.get(`${note.source}:${note.slug}`) ?? note.slug,
+    name: noteNameByKey.get(note.slug) ?? note.slug,
   }));
 
   return (

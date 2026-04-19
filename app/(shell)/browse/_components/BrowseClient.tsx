@@ -7,7 +7,6 @@ import { Chip } from "@/components/brand/Chip";
 import { SectionHeader } from "@/components/brand/SectionHeader";
 import {
   buildBrowseSearchParams,
-  encodeBrowseNoteParam,
   normalizeBrowseQuery,
   type BrowseFilterState,
   type BrowseManufacturerOption,
@@ -22,12 +21,6 @@ const INPUT_CLASS =
 
 const LIST_CLASS =
   "absolute left-0 right-0 top-full z-10 mt-1 max-h-72 overflow-auto rounded-[var(--radius-md)] border border-[color:var(--line)] bg-[color:var(--bg-elevated)] shadow-lg";
-
-function getSelectedNoteButtonClass(source: BrowseNoteOption["source"]) {
-  return source === "store"
-    ? "bg-[color:var(--bg-elevated)] text-[color:var(--text-soft)] border-[color:var(--line)] hover:border-[color:var(--accent)] hover:text-[color:var(--accent-strong)]"
-    : "bg-[color:var(--surface)] text-[color:var(--accent-strong)] border-[color:var(--accent)]/40 hover:bg-[color:var(--accent)] hover:text-white";
-}
 
 function useCloseOnOutsideClick<T extends HTMLElement>(setOpen: (open: false) => void) {
   const rootRef = useRef<T | null>(null);
@@ -204,10 +197,8 @@ function NotesCombobox({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const listId = useId();
 
-  const selectedKeys = new Set(selected.map((note) => encodeBrowseNoteParam(note)));
-  const available = options.filter(
-    (option) => !selectedKeys.has(encodeBrowseNoteParam(option)),
-  );
+  const selectedKeys = new Set(selected.map((note) => note.slug));
+  const available = options.filter((option) => !selectedKeys.has(option.slug));
   const filtered = query.trim()
     ? available.filter((option) =>
         option.name.toLowerCase().includes(query.trim().toLowerCase()),
@@ -221,7 +212,7 @@ function NotesCombobox({
   const showEmpty = open && query.trim().length > 0 && filtered.length === 0;
 
   const pick = (option: BrowseNoteOption) => {
-    onChange([...selected, { source: option.source, slug: option.slug, name: option.name }]);
+    onChange([...selected, { slug: option.slug, name: option.name }]);
     setQuery("");
     setActiveIndex(0);
     setOpen(false);
@@ -234,21 +225,18 @@ function NotesCombobox({
 
       <div className="flex flex-wrap items-center gap-1.5">
         {selected.map((note) => {
-          const key = encodeBrowseNoteParam(note);
+          const key = note.slug;
           return (
             <button
               key={key}
               type="button"
               onClick={() =>
                 onChange(
-                  selected.filter(
-                    (selectedNote) => encodeBrowseNoteParam(selectedNote) !== key,
-                  ),
+                  selected.filter((selectedNote) => selectedNote.slug !== key),
                 )
               }
               className={cn(
-                "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs transition-colors",
-                getSelectedNoteButtonClass(note.source),
+                "inline-flex items-center gap-1 rounded-full border border-[color:var(--accent)]/40 bg-[color:var(--surface)] px-3 py-1 text-xs text-[color:var(--accent-strong)] transition-colors hover:bg-[color:var(--accent)] hover:text-white",
               )}
               title="Remove note filter"
             >
@@ -296,7 +284,7 @@ function NotesCombobox({
                 setOpen(false);
               }
             }}
-            placeholder="Type to add store or personal note filters..."
+            placeholder="Type to add note filters..."
             className={INPUT_CLASS}
           />
 
@@ -304,7 +292,7 @@ function NotesCombobox({
             <ul id={listId} role="listbox" className={LIST_CLASS}>
               {filtered.map((option, index) => (
                 <li
-                  key={`${option.source}:${option.id}`}
+                  key={option.id}
                   role="option"
                   aria-selected={index === clampedActiveIndex}
                   onMouseDown={(event) => {
@@ -320,9 +308,6 @@ function NotesCombobox({
                   )}
                 >
                   <span className="text-sm">{option.name}</span>
-                  <span className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--text-soft)]">
-                    {option.source === "store" ? "Store note" : "Your tag"}
-                  </span>
                 </li>
               ))}
               {showEmpty && (
@@ -452,8 +437,8 @@ export function BrowseClient({
             {isLoading ? " · Updating..." : ""}
           </p>
           <p className="text-sm">
-            Live search matches perfume names, houses, store notes, and your
-            fragrance-note tags.
+            Live search matches perfume names, houses, and notes from either
+            store data or your personal note attachments.
           </p>
           {error && <p className="text-sm text-[color:var(--warning)]">{error}</p>}
         </div>

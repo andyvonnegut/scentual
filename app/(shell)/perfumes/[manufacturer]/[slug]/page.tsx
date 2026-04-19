@@ -11,16 +11,16 @@ import {
   getPerfumeByManufacturerAndSlug,
   getPriceHistory,
   getStockHistory,
+  getAllNotes,
 } from "@/lib/queries/perfumes";
 import {
-  getAllFragranceNoteTags,
   getAllThemeTags,
   getPersonalPerfumeByPerfumeId,
 } from "@/lib/queries/library";
 import {
-  addFragranceNoteTagByName,
+  addPersonalNoteByName,
   addThemeTagByName,
-  detachFragranceNoteTag,
+  detachPersonalNote,
   detachThemeTag,
 } from "@/app/actions/tags";
 import { JournalSection } from "./_components/JournalSection";
@@ -64,15 +64,15 @@ export default async function PerfumeDetailPage({
   if (!perfume) notFound();
   const returnPath = `/perfumes/${manufacturer}/${slug}`;
 
-  const [personal, allFragranceTags, allThemeTags] = await Promise.all([
+  const [personal, allNotes, allThemeTags] = await Promise.all([
     getPersonalPerfumeByPerfumeId(perfume.id),
-    getAllFragranceNoteTags(),
+    getAllNotes(),
     getAllThemeTags(),
   ]);
 
-  const attachedFragranceTags =
-    personal?.personal_perfume_user_fragrance_note_tags
-      ?.map((t) => t.user_fragrance_note_tag)
+  const attachedPersonalNotes =
+    personal?.personal_perfume_notes
+      ?.map((t) => t.note)
       .filter((t): t is { id: number; name: string; slug: string } => t !== null) ?? [];
   const attachedThemeTags =
     personal?.personal_perfume_theme_tags
@@ -82,6 +82,10 @@ export default async function PerfumeDetailPage({
   const storeNotes = (perfume.perfume_notes ?? [])
     .map((pn) => pn.note)
     .filter(Boolean) as { id: number; name: string; slug: string }[];
+  const storeNoteSlugs = new Set(storeNotes.map((note) => note.slug));
+  const availablePersonalNotes = allNotes.filter(
+    (note) => !storeNoteSlugs.has(note.slug),
+  );
 
   const variantInfo = new Map<
     number,
@@ -176,14 +180,14 @@ export default async function PerfumeDetailPage({
 
           <div className="flex flex-col gap-6 border-t border-[color:var(--line)] pt-6">
             <TagTypeahead
-              label="Fragrance notes"
+              label="Your notes"
               placeholder="Type a note…"
-              listId={`frag-tags-${perfume.id}`}
+              listId={`personal-notes-${perfume.id}`}
               variant="fragrance-note"
-              attached={attachedFragranceTags}
-              suggestions={allFragranceTags}
-              onAdd={addFragranceNoteTagByName.bind(null, perfume.id)}
-              onRemove={detachFragranceNoteTag.bind(null, perfume.id)}
+              attached={attachedPersonalNotes}
+              suggestions={availablePersonalNotes}
+              onAdd={addPersonalNoteByName.bind(null, perfume.id)}
+              onRemove={detachPersonalNote.bind(null, perfume.id)}
             />
             <TagTypeahead
               label="Themes"

@@ -1,5 +1,3 @@
-export type BrowseNoteSource = "store" | "user";
-
 export interface BrowseManufacturerOption {
   id: number;
   name: string;
@@ -7,7 +5,6 @@ export interface BrowseManufacturerOption {
 }
 
 export interface BrowseNoteFilter {
-  source: BrowseNoteSource;
   slug: string;
   name?: string;
 }
@@ -16,7 +13,6 @@ export interface BrowseNoteOption {
   id: number;
   name: string;
   slug: string;
-  source: BrowseNoteSource;
 }
 
 export interface BrowseFilterState {
@@ -54,20 +50,17 @@ export interface BrowseSearchResponse {
 export function parseBrowseNoteParam(value: string | null | undefined) {
   if (!value) return null;
 
-  const [source, ...slugParts] = value.split(":");
-  const slug = slugParts.join(":").trim();
+  const trimmed = value.trim();
+  if (!trimmed) return null;
 
-  if ((source === "store" || source === "user") && slug) {
-    return { source, slug } satisfies BrowseNoteFilter;
+  const legacyMatch = trimmed.match(/^(store|user):(.*)$/);
+  if (legacyMatch) {
+    const slug = legacyMatch[2]?.trim();
+    if (!slug) return null;
+    return { slug } satisfies BrowseNoteFilter;
   }
 
-  return null;
-}
-
-export function encodeBrowseNoteParam(
-  note: Pick<BrowseNoteFilter, "source" | "slug">,
-) {
-  return `${note.source}:${note.slug}`;
+  return { slug: trimmed } satisfies BrowseNoteFilter;
 }
 
 export function parseBrowseNoteParams(values: string[] | undefined) {
@@ -77,9 +70,8 @@ export function parseBrowseNoteParams(values: string[] | undefined) {
   for (const value of values ?? []) {
     const note = parseBrowseNoteParam(value);
     if (!note) continue;
-    const key = encodeBrowseNoteParam(note);
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (seen.has(note.slug)) continue;
+    seen.add(note.slug);
     parsed.push(note);
   }
 
@@ -109,10 +101,9 @@ export function buildBrowseSearchParams(filters: BrowseFilterState) {
 
   const seen = new Set<string>();
   for (const note of filters.notes ?? []) {
-    const encoded = encodeBrowseNoteParam(note);
-    if (seen.has(encoded)) continue;
-    seen.add(encoded);
-    params.append("note", encoded);
+    if (seen.has(note.slug)) continue;
+    seen.add(note.slug);
+    params.append("note", note.slug);
   }
 
   return params;

@@ -38,18 +38,18 @@ Two rails: **Recently added** and **Recently updated** (6 perfumes each). Empty-
 
 ### `/browse` — Catalog (`app/(shell)/browse/page.tsx`)
 Server-rendered shell plus a live client filter controller. Header shows only **The catalog** with result-count copy, with no micro-label above it. Controls update in real time with no submit button:
-- a single search line (`q`) that tokenizes whitespace and requires every typed word to match somewhere across perfume name, manufacturer name, canonical store notes, or personal fragrance-note tags
+- a single search line (`q`) that tokenizes whitespace and requires every typed word to match somewhere across perfume name, manufacturer name, canonical notes attached by the store, or canonical notes attached by the user
 - a single-select house combobox (`manufacturer=<slug>`)
-- a combined tag-style note picker using repeated `note=` params encoded as `store:<slug>` or `user:<slug>`; selected note chips are ANDed, so every chosen store note / personal note tag must be present
+- a deduplicated canonical-note picker using repeated `note=<slug>` params; selected note chips are ANDed, so every chosen note must be present either as a store note or as a personal note attachment
 
-The client updates the current URL with `window.history.replaceState` and fetches fresh results from `GET /api/catalog/browse`. The page still hydrates from the URL on first load/refresh. Up to 120 cards are rendered, with exact total counts shown when more matches exist. Each card shows perfume name, house link, and up to 6 canonical store notes as `store` chips. Data: `browsePerfumes`, `getAllManufacturers`, `getAllNotes`, and `getAllFragranceNoteTags`. `getAllNotes` paginates the full canonical note vocabulary instead of relying on Supabase's default 1,000-row page.
+The client updates the current URL with `window.history.replaceState` and fetches fresh results from `GET /api/catalog/browse`. The page still hydrates from the URL on first load/refresh. Up to 120 cards are rendered, with exact total counts shown when more matches exist. Each card shows perfume name, house link, and up to 6 canonical store notes as `store` chips. Data: `browsePerfumes`, `getAllManufacturers`, and `getAllNotes`. `getAllNotes` paginates the full canonical note vocabulary instead of relying on Supabase's default 1,000-row page.
 
 ### `/browse/manufacturers/[slug]` — House page
 All perfumes from one manufacturer. Data: `getManufacturerBySlug` → `getPerfumesByManufacturer`.
 
 ### `/perfumes/[manufacturer]/[slug]` — Perfume detail
 Two-column layout (1.1fr / 1fr on `md`+):
-- **Left:** big serif name, house link (sized `text-sm` uppercase label), `SaveControls`, `RatingControl` (1..5 perfume-bottle rating), personal tags (always shown — `Fragrance notes` and `Themes`, attachable even when the perfume isn't in Collection or Wanted), store-notes, source descriptions (per-retailer; no "open source" link here — it's on the availability row instead).
+- **Left:** big serif name, house link (sized `text-sm` uppercase label), `SaveControls`, `RatingControl` (1..5 perfume-bottle rating), personal tags (always shown — `Your notes` and `Themes`, attachable even when the perfume isn't in Collection or Wanted), a separate read-only `Store notes` section, source descriptions (per-retailer; no "open source" link here — it's on the availability row instead).
 - **Right aside (stacked):**
   - **Availability** (Card) — each active listing with its variants, current price (Intl.NumberFormat), size, stock-status chip, inactive badge. The retailer name is itself the "open source" link (`↗`).
   - **Journal** — "+ New journal entry" button that toggles an inline form (client component `NewJournalEntry`), followed by a **Past entries** list. Each past entry renders as its own bordered card with a left accent border to distinguish it from the new-entry affordance.
@@ -58,7 +58,7 @@ Two-column layout (1.1fr / 1fr on `md`+):
 Data: `getPerfumeByManufacturerAndSlug` returns the full tree (manufacturer, perfume_notes, perfume_listings → retailer + variants, journal_entries, personal_perfumes). Then `getPriceHistory(variantId)` / `getStockHistory(variantId)` are fanned out in parallel for every variant.
 
 ### `/collection` — Collection
-Saved-perfumes page renamed from Library to Collection. Header shows only **Collection** with the perfume count, with no micro-label above it. Filter pills: **All Saved** (default) / **Collection** / **Wanted** / **Both** via `?filter=`. Top card is `AddPerfumeSearch` (typeahead into `/api/catalog/search`, two buttons per hit to add to Collection or Wanted). Grid of `SavedCard`s (perfume, house, Collection/Wanted chips, size_owned, personal note, store notes, fragrance-note & theme tags, compact `RatingControl`, compact `SaveControls`). Data: `getSavedPerfumes(filter)`.
+Saved-perfumes page renamed from Library to Collection. Header shows only **Collection** with the perfume count, with no micro-label above it. Filter pills: **All Saved** (default) / **Collection** / **Wanted** / **Both** via `?filter=`. Top card is `AddPerfumeSearch` (typeahead into `/api/catalog/search`, two buttons per hit to add to Collection or Wanted). Grid of `SavedCard`s (perfume, house, Collection/Wanted chips, size_owned, personal note, store notes, personal-note chips, theme tags, compact `RatingControl`, compact `SaveControls`). Data: `getSavedPerfumes(filter)`.
 
 ### `/journal` — Journal list
 Reverse-chronological by `entry_date`, then `created_at`. Header shows only **Curated scentual memories...** with the entry count and "+ New entry" link, with no micro-label above it. Each entry renders as an editable card with formatted date, linked perfume, optional title, body, and inline `Edit` / `Delete` controls. Delete requires an in-card confirmation step. Supports `?perfume=<id>` to filter to one perfume. Data: `listJournalEntries`.
@@ -79,9 +79,9 @@ Every action calls `createServiceClient()` (service-role key, bypasses RLS) and 
 - `setRating(perfumeId, rating)` — upserts `personal_perfumes.rating` (1..5 integer or `null` to clear). Creates a bare row if none exists and `rating != null`; deletes the row when clearing the rating leaves no other personal data and both list flags are false.
 
 ### `tags.ts`
-- `createFragranceNoteTag(name)` / `createThemeTag(name)` — slugifies and upserts on `slug` (idempotent).
-- `addFragranceNoteTagByName(perfumeId, name)` / `addThemeTagByName(...)` — create-if-missing the tag, ensure a `personal_perfumes` row exists for the perfume (inserts a bare row if not), then upsert the join row. Lets users tag a perfume without adding it to Collection or Wanted.
-- `detachFragranceNoteTag(perfumeId, tagId)` / `detachThemeTag(...)` — look up the personal row by perfume and delete the join row.
+- `upsertCanonicalNote(name)` / `createThemeTag(name)` — slugifies and upserts on `slug` (idempotent). Notes are written into the shared canonical `notes` table, not a user-only note vocabulary.
+- `addPersonalNoteByName(perfumeId, name)` / `addThemeTagByName(...)` — create-if-missing the canonical note or theme tag, ensure a `personal_perfumes` row exists for the perfume (inserts a bare row if not), then upsert the join row. Lets users attach a personal note without adding the perfume to Collection or Wanted.
+- `detachPersonalNote(perfumeId, noteId)` / `detachThemeTag(...)` — look up the personal row by perfume and delete the join row.
 
 ### `journal.ts`
 - `createJournalEntry(formData)` — reads `perfume_id`, optional `title`, required `body`, `entry_date`, optional `redirect_to`. Inserts, revalidates `/journal` plus the redirect target when provided, then redirects.
@@ -105,8 +105,8 @@ Manual trigger for dev; do not expose in prod without gating.
 ### `GET /api/catalog/search?q=...` — catalog typeahead
 Returns up to 25 `{ id, name, slug, manufacturer: { id, name, slug } }` whose perfume name OR manufacturer name matches `q` (case-insensitive substring). Consumed by `AddPerfumeSearch` (library) and `PerfumePicker` (journal).
 
-### `GET /api/catalog/browse?q=...&manufacturer=...&note=store:...&note=user:...` — live browse filters
-Returns `{ total, results }` for the `/browse` live filter UI. `q` is whitespace-tokenized and each token must match somewhere across perfume name, manufacturer name, canonical store notes, or personal fragrance-note tags. `manufacturer` is an exact manufacturer slug filter. Repeated `note` params are exact-match AND filters, split by note source: canonical store notes (`store:<slug>`) and personal fragrance-note tags (`user:<slug>`).
+### `GET /api/catalog/browse?q=...&manufacturer=...&note=...` — live browse filters
+Returns `{ total, results }` for the `/browse` live filter UI. `q` is whitespace-tokenized and each token must match somewhere across perfume name, manufacturer name, store-note attachments, or personal-note attachments, all through the canonical `notes` table. `manufacturer` is an exact manufacturer slug filter. Repeated `note` params are exact-match AND filters on canonical note slugs. Legacy `store:<slug>` / `user:<slug>` URLs are still parsed and normalized.
 
 ---
 
@@ -122,7 +122,7 @@ Returns `{ total, results }` for the `/browse` live filter UI. `q` is whitespace
 ### Queries (`lib/queries/`)
 Read-only, server-only. Grouped by domain:
 - **`perfumes.ts`**: `getRecentPerfumes`, `getRecentlyUpdatedPerfumes`, `browsePerfumes`, `searchCatalog`, `getAllManufacturers`, `getAllNotes`, `getPerfumeByManufacturerAndSlug`, `getPriceHistory`, `getStockHistory`, `getManufacturerBySlug`, `getPerfumesByManufacturer`.
-- **`library.ts`**: `LibraryFilter` type; `getSavedPerfumes(filter)`, `getPersonalPerfumeByPerfumeId`, `getAllFragranceNoteTags`, `getAllThemeTags`.
+- **`library.ts`**: `LibraryFilter` type; `getSavedPerfumes(filter)`, `getPersonalPerfumeByPerfumeId`, `getAllThemeTags`.
 - **`journal.ts`**: `listJournalEntries(perfumeId?)`, `listJournalEntriesForPerfume`.
 
 ### Data flow
@@ -197,16 +197,15 @@ Read-only, server-only. Grouped by domain:
 - **`listing_stock_history`** — `id, listing_variant_id→ CASCADE, stock_status, stock_raw?, observed_at, change_type ('initial'|'changed')`. Index `(listing_variant_id, observed_at desc)`.
 
 ### Notes (canonical + source-raw)
-- **`notes`** — canonical store-note vocabulary mirrored from the current active listing note text: `id, name, slug UNIQUE, note_family?`.
+- **`notes`** — canonical fragrance-note vocabulary shared by store-note ingestion and user-created personal notes: `id, name, slug UNIQUE, note_family?`. Scrapes still rebuild the store-attached side of this vocabulary from active listings, and personal note creation can promote new user-entered note text into the same table.
 - **`source_notes`** — retailer-level unique active note phrases: `id, retailer_id→, raw_note_name, normalized_note_id?→notes`. `UNIQUE(retailer_id, raw_note_name)`.
 - **`perfume_notes`** — perfume-level union of active listing notes: `id, perfume_id→ CASCADE, note_id→ CASCADE`. `UNIQUE(perfume_id, note_id)`.
 - **`perfume_source_notes`** — per-listing raw note capture, kept in exact sync with the current parsed note set for active listings. `UNIQUE(perfume_listing_id, raw_note_text)`.
 
 ### Personal library
 - **`personal_perfumes`** — `id, perfume_id UNIQUE→ CASCADE, in_collection, in_wanted, size_owned_text?, personal_note?, rating? smallint CHECK (1..5), added_to_collection_at?, added_to_wanted_at?, updated_at`. Partial indexes on each flag. Bare rows (both flags false) are allowed so tags / notes / rating can exist without the perfume being in Collection or Wanted — the original `CHECK (in_collection OR in_wanted)` was dropped in `20260419020001_allow_bare_personal_perfumes.sql`.
-- **`user_fragrance_note_tags`** — `id, name, slug UNIQUE`. User-curated fragrance-note tag vocabulary.
+- **`personal_perfume_notes`** — join from a personal perfume row to canonical `notes`. `UNIQUE(personal_perfume_id, note_id)`.
 - **`theme_tags`** (renamed from `generic_tags`) — `id, name, slug UNIQUE`. Theme / mood / occasion tags.
-- **`personal_perfume_user_fragrance_note_tags`** — join, `UNIQUE(personal_perfume_id, user_fragrance_note_tag_id)`.
 - **`personal_perfume_theme_tags`** (renamed from `personal_perfume_generic_tags`) — join, `UNIQUE(personal_perfume_id, theme_tag_id)`.
 
 ### Journal
@@ -235,7 +234,7 @@ Small hand-rolled design system. No shadcn, no headless-ui.
 - **`JournalEntryCard.tsx`** — *client.* Shared inline journal-entry viewer/editor used by the journal list and perfume detail page; supports edit, in-card delete confirmation, and route-aware refresh after mutations.
 
 Page-scoped components live under `app/(shell)/<route>/_components/`:
-- `browse/_components/BrowseClient.tsx` — client, local live-filter controller for `/browse`; owns the free-text search line, house combobox, combined store/user note combobox, URL syncing via `window.history.replaceState`, debounced fetches to `/api/catalog/browse`, and result rendering.
+- `browse/_components/BrowseClient.tsx` — client, local live-filter controller for `/browse`; owns the free-text search line, house combobox, deduplicated canonical-note combobox, URL syncing via `window.history.replaceState`, debounced fetches to `/api/catalog/browse`, and result rendering.
 - `collection/_components/AddPerfumeSearch.tsx` — client, typeahead → `/api/catalog/search`, one-click add to Collection / Wanted.
 - `library/_components/SavedCard.tsx` — server, composes `Card` + `Chip` + compact `SaveControls`.
 - `journal/new/_components/PerfumePicker.tsx` — client, async-search combobox → `/api/catalog/search` (matches perfume or house), keyboard-navigable results list, selected-chip UI, hidden `perfume_id`.
@@ -283,7 +282,7 @@ Defined as CSS custom properties (globals) consumed by Tailwind utilities and CV
 - Listing identity prefers `(retailer_id, source_product_id)` when present and falls back to `(retailer_id, source_url)`. Variants are `(listing_id, size_label)`.
 - Price/stock history is append-only. Never update rows in `listing_price_history` / `listing_stock_history`.
 - A `personal_perfumes` row may exist with both flags false when it carries tags, notes, or a rating (the old `in_collection OR in_wanted` CHECK was dropped). Toggling both flags off deletes the row only if it has no attached tags and no `size_owned_text` / `personal_note` / `rating`; otherwise the row is kept so user data survives.
-- Store notes (scraper output) are distinct from personal fragrance-note tags; they live in different tables and render as different Chip variants.
-- Canonical store notes are an exact mirror of explicit note blocks on active product pages. If a note disappears from every active listing, the rebuild prunes it from `notes`, `source_notes`, and `perfume_notes`.
+- Store notes (scraper output) and personal note attachments both point at the shared canonical `notes` table, but they are stored in different join tables and still render in separate UI sections.
+- Canonical store-note attachments are an exact mirror of explicit note blocks on active product pages. If a scrape-derived note disappears from every active listing, the rebuild prunes it from `source_notes` and `perfume_notes`, but canonical `notes` rows may still remain when users have promoted or attached them personally.
 - All mutations revalidate at `("/", "layout")`. If you add a mutation, call it.
 - The service role key must never be imported into a client component. Only `lib/supabase/service.ts` reads it, and only server actions / API routes / the scraper import from there.

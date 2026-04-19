@@ -5,16 +5,16 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { slugify } from "@/lib/scrape/normalize";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-// Create-or-return helpers. Both return the tag row so callers can chain an
+// Create-or-return helpers. Both return the row so callers can chain an
 // attach immediately. Slug collision → return existing (idempotent create).
 
-export async function createFragranceNoteTag(name: string) {
+export async function upsertCanonicalNote(name: string) {
   const trimmed = name.trim();
   if (!trimmed) return null;
   const db = createServiceClient();
   const slug = slugify(trimmed);
   const { data } = await db
-    .from("user_fragrance_note_tags")
+    .from("notes")
     .upsert({ name: trimmed, slug }, { onConflict: "slug" })
     .select("id, name, slug")
     .single();
@@ -38,7 +38,7 @@ export async function createThemeTag(name: string) {
 
 // Returns the personal_perfumes row id for this perfume, creating a bare row
 // (neither in_collection nor in_wanted) if one doesn't exist. Lets us hang
-// tags on a perfume the user hasn't explicitly saved.
+// notes or tags on a perfume the user hasn't explicitly saved.
 async function ensurePersonalPerfumeId(
   db: SupabaseClient,
   perfumeId: number,
@@ -70,26 +70,26 @@ async function getPersonalPerfumeId(
 }
 
 // One-shot actions keyed by perfumeId. If the personal_perfumes row doesn't
-// exist yet, a bare row is created so the tag has somewhere to hang.
+// exist yet, a bare row is created so the note has somewhere to hang.
 
-export async function addFragranceNoteTagByName(
+export async function addPersonalNoteByName(
   perfumeId: number,
   name: string,
 ) {
-  const tag = await createFragranceNoteTag(name);
-  if (!tag) return;
+  const note = await upsertCanonicalNote(name);
+  if (!note) return;
   const db = createServiceClient();
   const personalId = await ensurePersonalPerfumeId(db, perfumeId);
   if (!personalId) return;
   await db
-    .from("personal_perfume_user_fragrance_note_tags")
+    .from("personal_perfume_notes")
     .upsert(
       {
         personal_perfume_id: personalId,
-        user_fragrance_note_tag_id: tag.id,
+        note_id: note.id,
       },
       {
-        onConflict: "personal_perfume_id,user_fragrance_note_tag_id",
+        onConflict: "personal_perfume_id,note_id",
         ignoreDuplicates: true,
       },
     );
@@ -117,18 +117,18 @@ export async function addThemeTagByName(perfumeId: number, name: string) {
   revalidatePath("/", "layout");
 }
 
-export async function detachFragranceNoteTag(
+export async function detachPersonalNote(
   perfumeId: number,
-  tagId: number,
+  noteId: number,
 ) {
   const db = createServiceClient();
   const personalId = await getPersonalPerfumeId(db, perfumeId);
   if (!personalId) return;
   await db
-    .from("personal_perfume_user_fragrance_note_tags")
+    .from("personal_perfume_notes")
     .delete()
     .eq("personal_perfume_id", personalId)
-    .eq("user_fragrance_note_tag_id", tagId);
+    .eq("note_id", noteId);
   revalidatePath("/", "layout");
 }
 

@@ -28,9 +28,9 @@ async function hasPersonalData(
 ): Promise<boolean> {
   if (existing?.size_owned_text || existing?.personal_note) return true;
   if (existing?.rating != null) return true;
-  const [fragCount, themeCount] = await Promise.all([
+  const [noteCount, themeCount] = await Promise.all([
     db
-      .from("personal_perfume_user_fragrance_note_tags")
+      .from("personal_perfume_notes")
       .select("personal_perfume_id", { count: "exact", head: true })
       .eq("personal_perfume_id", personalId),
     db
@@ -38,7 +38,7 @@ async function hasPersonalData(
       .select("personal_perfume_id", { count: "exact", head: true })
       .eq("personal_perfume_id", personalId),
   ]);
-  return (fragCount.count ?? 0) > 0 || (themeCount.count ?? 0) > 0;
+  return (noteCount.count ?? 0) > 0 || (themeCount.count ?? 0) > 0;
 }
 
 export async function toggleCollection(perfumeId: number, next: boolean) {

@@ -20,9 +20,7 @@ type Saved = {
     manufacturer: { id: number; name: string; slug: string } | null;
     perfume_notes: { note: Ref | null }[] | null;
   } | null;
-  personal_perfume_user_fragrance_note_tags:
-    | { user_fragrance_note_tag: Ref | null }[]
-    | null;
+  personal_perfume_notes: { note: Ref | null }[] | null;
   personal_perfume_theme_tags:
     | { theme_tag: Ref | null }[]
     | null;
@@ -40,9 +38,9 @@ export function SavedCard({ saved }: { saved: Saved }) {
       ?.map((pn) => pn.note)
       .filter((n): n is Ref => n !== null) ?? [];
 
-  const fragranceTags =
-    saved.personal_perfume_user_fragrance_note_tags
-      ?.map((t) => t.user_fragrance_note_tag)
+  const personalNotes =
+    saved.personal_perfume_notes
+      ?.map((t) => t.note)
       .filter((t): t is Ref => t !== null) ?? [];
 
   const themeTags =
@@ -95,9 +93,9 @@ export function SavedCard({ saved }: { saved: Saved }) {
           </div>
         )}
 
-        {(fragranceTags.length > 0 || themeTags.length > 0) && (
+        {(personalNotes.length > 0 || themeTags.length > 0) && (
           <div className="flex flex-wrap gap-1 border-t border-[color:var(--line)] pt-3">
-            {fragranceTags.map((t) => (
+            {personalNotes.map((t) => (
               <Chip key={`f-${t.id}`} variant="fragrance-note" size="sm">
                 {t.name}
               </Chip>
