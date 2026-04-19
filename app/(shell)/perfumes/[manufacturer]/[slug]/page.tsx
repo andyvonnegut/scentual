@@ -81,22 +81,47 @@ export default async function PerfumeDetailPage({
     .map((pn) => pn.note)
     .filter(Boolean) as { id: number; name: string; slug: string }[];
 
-  const allVariantIds =
-    perfume.perfume_listings?.flatMap((l) =>
-      (l.listing_variants ?? []).map((v) => v.id),
-    ) ?? [];
+  const variantInfo = new Map<
+    number,
+    { retailer: string; size: string }
+  >();
+  for (const l of perfume.perfume_listings ?? []) {
+    const retailer = l.retailer?.name ?? "Unknown";
+    for (const v of l.listing_variants ?? []) {
+      variantInfo.set(v.id, { retailer, size: v.size_label ?? "" });
+    }
+  }
+  const allVariantIds = Array.from(variantInfo.keys());
 
   const [priceHistories, stockHistories] = await Promise.all([
     Promise.all(allVariantIds.map((id) => getPriceHistory(id))),
     Promise.all(allVariantIds.map((id) => getStockHistory(id))),
   ]);
 
-  const priceByVariant = new Map(
-    allVariantIds.map((id, i) => [id, priceHistories[i]]),
-  );
-  const stockByVariant = new Map(
-    allVariantIds.map((id, i) => [id, stockHistories[i]]),
-  );
+  const changeRows: ChangeRow[] = [];
+  allVariantIds.forEach((id, i) => {
+    const info = variantInfo.get(id)!;
+    for (const h of priceHistories[i]) {
+      changeRows.push({
+        date: h.observed_at,
+        kind: "price",
+        retailer: info.retailer,
+        size: info.size,
+        changeType: h.change_type,
+        value: formatPrice(Number(h.price), h.currency),
+      });
+    }
+    for (const h of stockHistories[i]) {
+      changeRows.push({
+        date: h.observed_at,
+        kind: "stock",
+        retailer: info.retailer,
+        size: info.size,
+        changeType: h.change_type,
+        value: formatStock(h.stock_status, h.stock_raw),
+      });
+    }
+  });
 
   return (
     <PageShell>
@@ -245,45 +270,10 @@ export default async function PerfumeDetailPage({
       </div>
 
       <section className="mt-16 flex flex-col gap-6">
-        <SectionHeader label="History" title="Price & stock changes" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card>
-            <span className="micro-label">Price history</span>
-            <HistoryTable
-              empty="No price changes recorded."
-              rows={Array.from(priceByVariant.entries()).flatMap(
-                ([vid, history]) =>
-                  history.map((h) => ({
-                    date: h.observed_at,
-                    label: `${
-                      perfume.perfume_listings?.flatMap((l) =>
-                        l.listing_variants?.filter((v) => v.id === vid),
-                      )[0]?.size_label ?? ""
-                    } · ${h.change_type}`,
-                    value: formatPrice(Number(h.price), h.currency),
-                  })),
-              )}
-            />
-          </Card>
-          <Card>
-            <span className="micro-label">Stock history</span>
-            <HistoryTable
-              empty="No stock changes recorded."
-              rows={Array.from(stockByVariant.entries()).flatMap(
-                ([vid, history]) =>
-                  history.map((h) => ({
-                    date: h.observed_at,
-                    label: `${
-                      perfume.perfume_listings?.flatMap((l) =>
-                        l.listing_variants?.filter((v) => v.id === vid),
-                      )[0]?.size_label ?? ""
-                    } · ${h.change_type}`,
-                    value: formatStock(h.stock_status, h.stock_raw),
-                  })),
-              )}
-            />
-          </Card>
-        </div>
+        <SectionHeader label="History" title="Recent price & stock changes" />
+        <Card>
+          <ChangesTable rows={changeRows} />
+        </Card>
       </section>
 
       <section className="mt-16">
@@ -293,16 +283,21 @@ export default async function PerfumeDetailPage({
   );
 }
 
-function HistoryTable({
-  rows,
-  empty,
-}: {
-  rows: { date: string; label: string; value: string }[];
-  empty: string;
-}) {
+type ChangeRow = {
+  date: string;
+  kind: "price" | "stock";
+  retailer: string;
+  size: string;
+  changeType: string;
+  value: string;
+};
+
+function ChangesTable({ rows }: { rows: ChangeRow[] }) {
   if (rows.length === 0) {
     return (
-      <p className="text-sm text-[color:var(--text-soft)] mt-3">{empty}</p>
+      <p className="text-sm text-[color:var(--text-soft)] mt-3">
+        No price or stock changes recorded.
+      </p>
     );
   }
   const sorted = [...rows].sort((a, b) =>
@@ -319,8 +314,21 @@ function HistoryTable({
             <td className="py-2 pr-3 text-[color:var(--text-soft)] whitespace-nowrap">
               {formatDate(row.date)}
             </td>
+            <td className="py-2 pr-3">
+              <span className="inline-flex flex-wrap items-center gap-1.5">
+                <Chip variant="store" size="sm">
+                  {row.retailer}
+                </Chip>
+                <Chip
+                  variant={row.kind === "price" ? "fragrance-note" : "theme"}
+                  size="sm"
+                >
+                  {row.kind}
+                </Chip>
+              </span>
+            </td>
             <td className="py-2 pr-3 text-[color:var(--text-soft)]">
-              {row.label}
+              {[row.size, row.changeType].filter(Boolean).join(" · ")}
             </td>
             <td className="py-2 text-right font-medium">{row.value}</td>
           </tr>
