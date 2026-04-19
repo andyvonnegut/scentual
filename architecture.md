@@ -144,7 +144,7 @@ Read-only, server-only. Grouped by domain:
 `ingestOne(ctx, scraped, counts)` steps:
 1. Upsert manufacturer on `slug`.
 2. Upsert perfume on `(manufacturer_id, slug)`.
-3. Upsert listing on `(retailer_id, source_url)`; bump `last_seen_at`, `last_scraped_at`.
+3. Upsert listing preferring the stable `(retailer_id, source_product_id)` pair, falling back to `(retailer_id, source_url)` when no product id is available. On match, refresh `source_url` so upstream handle changes self-heal. Bump `last_seen_at`, `last_scraped_at`.
 4. For each variant: upsert `listing_variants` on `(listing_id, size_label)`; if price differs, insert a `listing_price_history` row (`initial` / `increase` / `decrease`); if stock differs, insert `listing_stock_history` (`initial` / `changed`).
 5. Track `listing_id` in `seenListingIds`.
 
@@ -167,7 +167,7 @@ Read-only, server-only. Grouped by domain:
 - **`retailers`** — `id, name, slug UNIQUE, base_url`.
 
 ### Listings & variants
-- **`perfume_listings`** — `id, perfume_id→ ON DELETE CASCADE, retailer_id→ ON DELETE RESTRICT, source_url, source_product_id?, source_title, source_description?, active, first_seen_at, last_seen_at, last_scraped_at`. `UNIQUE(retailer_id, source_url)`.
+- **`perfume_listings`** — `id, perfume_id→ ON DELETE CASCADE, retailer_id→ ON DELETE RESTRICT, source_url, source_product_id?, source_title, source_description?, active, first_seen_at, last_seen_at, last_scraped_at`. `UNIQUE(retailer_id, source_url)` plus a partial unique index on `(retailer_id, source_product_id) where source_product_id is not null`.
 - **`listing_variants`** — `id, perfume_listing_id→ CASCADE, size_label, size_value_ml?, current_price?, currency='USD', current_stock_status (enum), current_stock_raw?`. `UNIQUE(perfume_listing_id, size_label)`.
 
 ### History (append-only)

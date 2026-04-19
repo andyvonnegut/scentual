@@ -56,14 +56,30 @@ export async function ingestOne(
     .single();
   if (pErr || !perfume) throw pErr ?? new Error("perfume upsert failed");
 
-  // 3. Listing (retailer_id + source_url).
+  // 3. Listing — prefer stable (retailer_id, source_product_id); fall back to
+  // (retailer_id, source_url) for retailers that don't expose a stable id.
+  // Keying on source_url breaks when the upstream handle changes (e.g. the
+  // retailer fixes bad product metadata), leaving stale URLs in our DB.
   const nowIso = new Date().toISOString();
-  const { data: existingListing } = await db
-    .from("perfume_listings")
-    .select("id")
-    .eq("retailer_id", retailerId)
-    .eq("source_url", scraped.sourceUrl)
-    .maybeSingle();
+  let existingListing: { id: number } | null = null;
+  if (scraped.sourceProductId) {
+    const { data } = await db
+      .from("perfume_listings")
+      .select("id")
+      .eq("retailer_id", retailerId)
+      .eq("source_product_id", scraped.sourceProductId)
+      .maybeSingle();
+    existingListing = data ?? null;
+  }
+  if (!existingListing) {
+    const { data } = await db
+      .from("perfume_listings")
+      .select("id")
+      .eq("retailer_id", retailerId)
+      .eq("source_url", scraped.sourceUrl)
+      .maybeSingle();
+    existingListing = data ?? null;
+  }
 
   let listingId: number;
   if (existingListing) {
@@ -74,6 +90,7 @@ export async function ingestOne(
         last_seen_at: nowIso,
         last_scraped_at: nowIso,
         active: true,
+        source_url: scraped.sourceUrl,
         source_title: scraped.sourceTitle,
         source_description: scraped.sourceDescription,
         source_product_id: scraped.sourceProductId,
