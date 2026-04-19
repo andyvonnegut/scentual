@@ -19,12 +19,8 @@ export default async function Home() {
         <header className="flex flex-col gap-6 pt-8 pb-4">
           <span className="micro-label">Scentual</span>
           <h1 className="font-display text-6xl md:text-7xl leading-[0.95] tracking-tight text-[color:var(--text)] max-w-3xl">
-            A quiet archive of scent.
+            An archive of scent.
           </h1>
-          <p className="max-w-xl text-lg text-[color:var(--text-soft)] leading-relaxed">
-            A private perfume library, journal, and historical record — drawn
-            from Ministry of Scent and LuckyScent, organized the way you think.
-          </p>
         </header>
 
         <section className="flex flex-col gap-6">
