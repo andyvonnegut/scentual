@@ -1,5 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/service";
 import type { SourceScraper } from "./types";
+import { rebuildCanonicalNotes } from "./note-sync.mjs";
 import {
   ingestOne,
   markStaleListingsInactive,
@@ -66,6 +67,10 @@ export async function runScrape(
   let staleDeactivated = 0;
   let firstErrorSummary: string | undefined;
 
+  async function finalizeCanonicalNotes() {
+    await rebuildCanonicalNotes(db);
+  }
+
   try {
     for await (const scraped of scraper.crawl()) {
       try {
@@ -84,6 +89,7 @@ export async function runScrape(
       retailer.id,
       run.started_at,
     );
+    await finalizeCanonicalNotes();
 
     await db
       .from("scrape_runs")
@@ -106,6 +112,11 @@ export async function runScrape(
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    try {
+      await finalizeCanonicalNotes();
+    } catch {
+      // Preserve the original scrape failure; note rebuild can be retried.
+    }
     await db
       .from("scrape_runs")
       .update({

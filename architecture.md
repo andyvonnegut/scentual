@@ -118,7 +118,7 @@ Read-only, server-only. Grouped by domain:
 
 **Writes:** client component → server action → service client (service role, RLS bypassed) → `revalidatePath("/", "layout")` → affected server pages re-render on next request. Client components use `useTransition` for optimistic UI.
 
-**Ingest:** Vercel Cron → `/api/cron/scrape/[source]` → `runScrape` → scraper `crawl()` async iterable → `ingestOne` per item (upserts + history rows) → `markStaleListingsInactive` → write `scrape_runs` row.
+**Ingest:** Vercel Cron → `/api/cron/scrape/[source]` → `runScrape` → scraper `crawl()` async iterable → `ingestOne` per item (upserts + history rows + listing-level note sync) → `markStaleListingsInactive` → `rebuildCanonicalNotes` → write `scrape_runs` row.
 
 ---
 
@@ -126,19 +126,22 @@ Read-only, server-only. Grouped by domain:
 
 ### Types (`types.ts`)
 - `ScrapedVariant { sizeLabel, sizeValueMl, currentPrice, currency, currentStockStatus, currentStockRaw }`
-- `ScrapedPerfume { manufacturerName, name, sourceUrl, sourceProductId, sourceTitle, sourceDescription, notes[], variants[] }`
+- `ScrapedPerfume { manufacturerName, name, sourceUrl, sourceProductId, sourceTitle, sourceDescription, notes[] | null, variants[] }`
 - `SourceScraper { sourceSlug, retailerSlug, crawl(): AsyncIterable<ScrapedPerfume> }`
 
 ### Normalization (`normalize.ts`)
 - `slugify` — NFD + strip accents, lowercase, alphanumeric + hyphen, 120 char cap.
-- `normalizeNoteName` — lowercase, whitespace collapse, known-token hyphen keep-list (e.g. `ylang-ylang`), synonym map (`orange-blossom` → `orange blossom`).
 - `parsePrice` — strips non-digits/dots.
 - `parseSizeMl` — matches `ml` directly or converts from `oz` (×29.5735).
 - `normalizeStockStatus` — enum map from raw string + availability boolean to `in_stock | out_of_stock | low_stock | unavailable | unknown`.
 
+### Note extraction + mirror rebuild
+- **`notes.mjs`** — shared note extraction + cleanup helpers. Minimal cleanup only: trim punctuation, collapse whitespace, lowercase for storage, preserve source phrases otherwise.
+- **`note-sync.mjs`** — exact listing-level note sync (`perfume_source_notes`) plus canonical note rebuild across active listings. Rebuild deletes stale inactive listing note rows, repopulates `source_notes` and `perfume_notes`, then prunes unused rows from `notes`.
+
 ### Source adapters
-- **`ministryofscent.ts`** — Shopify REST `/products.json?limit=250&page=N`. Parses `body_html` with cheerio to extract notes (prefers an explicit "Notes:" label, falls back to the first `<ul>`).
-- **`luckyscent.ts`** — Shopify Hydrogen Storefront GraphQL (`/api/2024-01/graphql.json`), cursor-pagination at 100/page. Size comes from variant `selectedOptions` where `name.toLowerCase() === "size"`. Placeholder products (vendor = `Marketing` or empty `descriptionHtml`) are dropped — LuckyScent exposes these in GraphQL but their public URLs 404.
+- **`ministryofscent.ts`** — Shopify REST `/products.json?limit=250&page=N`. Parses the explicit labeled notes block from `body_html`.
+- **`luckyscent.ts`** — Shopify Hydrogen Storefront GraphQL (`/api/2024-01/graphql.json`), cursor-pagination at 100/page, plus bounded-concurrency product-page fetches to parse the rendered `Fragrance Notes` list. Size comes from variant `selectedOptions` where `name.toLowerCase() === "size"`. Placeholder products (vendor = `Marketing` or empty `descriptionHtml`) are dropped — LuckyScent exposes these in GraphQL but their public URLs 404.
 
 ### Ingestion (`ingest.ts`)
 `ingestOne(ctx, scraped, counts)` steps:
@@ -146,12 +149,16 @@ Read-only, server-only. Grouped by domain:
 2. Upsert perfume on `(manufacturer_id, slug)`.
 3. Upsert listing preferring the stable `(retailer_id, source_product_id)` pair, falling back to `(retailer_id, source_url)` when no product id is available. On match, refresh `source_url` so upstream handle changes self-heal. Bump `last_seen_at`, `last_scraped_at`.
 4. For each variant: upsert `listing_variants` on `(listing_id, size_label)`; if price differs, insert a `listing_price_history` row (`initial` / `increase` / `decrease`); if stock differs, insert `listing_stock_history` (`initial` / `changed`).
-5. Track `listing_id` in `seenListingIds`.
+5. If `scraped.notes !== null`, exactly sync `perfume_source_notes` for that listing to the cleaned note set parsed from the product page.
+6. Track `listing_id` in `seenListingIds`.
 
 `markStaleListingsInactive(db, retailerId, runStartTime)` sets `active = false` on retailer listings whose `last_seen_at < runStartTime`.
 
 ### Runner (`runner.ts`)
-`runScrape(sourceSlug, runType)` creates a `scrape_runs` row (`status='running'`), loops `scraper.crawl()` calling `ingestOne`, runs stale deactivation, then finalizes the run row with counts and `succeeded`/`failed` + `error_summary`.
+`runScrape(sourceSlug, runType)` creates a `scrape_runs` row (`status='running'`), loops `scraper.crawl()` calling `ingestOne`, runs stale deactivation, rebuilds canonical note tables, then finalizes the run row with counts and `succeeded`/`failed` + `error_summary`.
+
+### Backfill
+- **`scripts/backfill-notes.mjs`** — one-off repair script for exact canonical-note mirroring. Reads active listings from Supabase, parses notes from stored Ministry of Scent HTML or live LuckyScent product pages, syncs listing note rows, then runs `rebuildCanonicalNotes`. Optional scope: `--retailer=ministryofscent|luckyscent`.
 
 ### Cron schedule (`vercel.json`)
 - `ministryofscent` — `17 3 * * *` (03:17 UTC)
@@ -175,10 +182,10 @@ Read-only, server-only. Grouped by domain:
 - **`listing_stock_history`** — `id, listing_variant_id→ CASCADE, stock_status, stock_raw?, observed_at, change_type ('initial'|'changed')`. Index `(listing_variant_id, observed_at desc)`.
 
 ### Notes (canonical + source-raw)
-- **`notes`** — canonical vocabulary: `id, name, slug UNIQUE, note_family?`.
-- **`source_notes`** — `id, retailer_id→, raw_note_name, normalized_note_id?→notes`. `UNIQUE(retailer_id, raw_note_name)`.
-- **`perfume_notes`** — `id, perfume_id→ CASCADE, note_id→ CASCADE`. `UNIQUE(perfume_id, note_id)`.
-- **`perfume_source_notes`** — per-listing raw note capture. `UNIQUE(perfume_listing_id, raw_note_text)`.
+- **`notes`** — canonical store-note vocabulary mirrored from the current active listing note text: `id, name, slug UNIQUE, note_family?`.
+- **`source_notes`** — retailer-level unique active note phrases: `id, retailer_id→, raw_note_name, normalized_note_id?→notes`. `UNIQUE(retailer_id, raw_note_name)`.
+- **`perfume_notes`** — perfume-level union of active listing notes: `id, perfume_id→ CASCADE, note_id→ CASCADE`. `UNIQUE(perfume_id, note_id)`.
+- **`perfume_source_notes`** — per-listing raw note capture, kept in exact sync with the current parsed note set for active listings. `UNIQUE(perfume_listing_id, raw_note_text)`.
 
 ### Personal library
 - **`personal_perfumes`** — `id, perfume_id UNIQUE→ CASCADE, in_collection, in_wanted, size_owned_text?, personal_note?, added_to_collection_at?, added_to_wanted_at?, updated_at`. CHECK `(in_collection OR in_wanted)`. Partial indexes on each flag.
@@ -253,9 +260,10 @@ Defined as CSS custom properties (globals) consumed by Tailwind utilities and CV
 ## Conventions / invariants worth knowing
 
 - Perfume identity is `(manufacturer.slug, perfume.slug)`. Both are produced by `slugify` — change that function carefully.
-- Listing identity is `(retailer_id, source_url)`. Variants are `(listing_id, size_label)`.
+- Listing identity prefers `(retailer_id, source_product_id)` when present and falls back to `(retailer_id, source_url)`. Variants are `(listing_id, size_label)`.
 - Price/stock history is append-only. Never update rows in `listing_price_history` / `listing_stock_history`.
 - A `personal_perfumes` row must have `in_collection OR in_wanted`. Toggling both off deletes the row (and by cascade, its tag joins).
 - Store notes (scraper output) are distinct from personal fragrance-note tags; they live in different tables and render as different Chip variants.
+- Canonical store notes are an exact mirror of explicit note blocks on active product pages. If a note disappears from every active listing, the rebuild prunes it from `notes`, `source_notes`, and `perfume_notes`.
 - All mutations revalidate at `("/", "layout")`. If you add a mutation, call it.
 - The service role key must never be imported into a client component. Only `lib/supabase/service.ts` reads it, and only server actions / API routes / the scraper import from there.

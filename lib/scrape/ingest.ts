@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import type { ScrapedPerfume } from "./types";
-import { normalizeNoteName, slugify } from "./normalize";
+import { syncListingNoteRows } from "./note-sync.mjs";
+import { slugify } from "./normalize";
 
 type ServiceClient = SupabaseClient<Database>;
 
@@ -199,51 +200,13 @@ export async function ingestOne(
     }
   }
 
-  // 5. Notes (canonical + source traceability).
-  for (const rawNote of scraped.notes) {
-    const normalized = normalizeNoteName(rawNote);
-    if (!normalized) continue;
-    const noteSlug = slugify(normalized);
-    if (!noteSlug) continue;
-
-    const { data: note, error: nErr } = await db
-      .from("notes")
-      .upsert({ name: normalized, slug: noteSlug }, { onConflict: "slug" })
-      .select("id")
-      .single();
-    if (nErr || !note) continue;
-
-    await db
-      .from("source_notes")
-      .upsert(
-        {
-          retailer_id: retailerId,
-          raw_note_name: rawNote,
-          normalized_note_id: note.id,
-        },
-        { onConflict: "retailer_id,raw_note_name", ignoreDuplicates: true },
-      );
-
-    await db
-      .from("perfume_notes")
-      .upsert(
-        { perfume_id: perfume.id, note_id: note.id },
-        { onConflict: "perfume_id,note_id", ignoreDuplicates: true },
-      );
-
-    await db
-      .from("perfume_source_notes")
-      .upsert(
-        {
-          perfume_listing_id: listingId,
-          raw_note_text: rawNote,
-          normalized_note_id: note.id,
-        },
-        {
-          onConflict: "perfume_listing_id,raw_note_text",
-          ignoreDuplicates: true,
-        },
-      );
+  // 5. Notes. When the scraper has note data, keep the listing-level capture
+  // in exact sync. Higher-level note tables are rebuilt after each run.
+  if (scraped.notes !== null) {
+    await syncListingNoteRows(db, {
+      listingId,
+      noteNames: scraped.notes,
+    });
   }
 }
 

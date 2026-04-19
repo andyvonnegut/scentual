@@ -1,4 +1,5 @@
 import type { ScrapedPerfume, ScrapedVariant, SourceScraper } from "./types";
+import { extractNotesFromLuckyscentPageHtml } from "./notes.mjs";
 import {
   normalizeStockStatus,
   parsePrice,
@@ -87,6 +88,36 @@ async function fetchPage(cursor: string | null): Promise<GqlResponse> {
   return res.json() as Promise<GqlResponse>;
 }
 
+async function fetchProductNotes(handle: string): Promise<string[] | null> {
+  const res = await fetch(`https://www.luckyscent.com/products/${handle}`, {
+    headers: { "User-Agent": UA },
+  });
+  if (!res.ok) return null;
+  return extractNotesFromLuckyscentPageHtml(await res.text());
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let index = 0;
+
+  async function worker() {
+    while (index < items.length) {
+      const current = index;
+      index++;
+      results[current] = await fn(items[current]);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => worker()),
+  );
+  return results;
+}
+
 function pickSizeLabel(v: GqlVariant): string {
   const size = v.selectedOptions.find(
     (o) => o.name.toLowerCase() === "size",
@@ -94,7 +125,7 @@ function pickSizeLabel(v: GqlVariant): string {
   return size?.value ?? v.title ?? "default";
 }
 
-function toScraped(p: GqlProduct): ScrapedPerfume | null {
+async function toScraped(p: GqlProduct): Promise<ScrapedPerfume | null> {
   if (!p.vendor || !p.title) return null;
 
   // Skip LuckyScent's placeholder/duplicate products. These share Shopify
@@ -120,6 +151,8 @@ function toScraped(p: GqlProduct): ScrapedPerfume | null {
 
   if (variants.length === 0) return null;
 
+  const notes = await fetchProductNotes(p.handle);
+
   return {
     manufacturerName: p.vendor.trim(),
     name: p.title.trim(),
@@ -127,7 +160,7 @@ function toScraped(p: GqlProduct): ScrapedPerfume | null {
     sourceProductId: p.id,
     sourceTitle: p.title,
     sourceDescription: p.descriptionHtml,
-    notes: [], // LuckyScent notes live in descriptionHtml free-text; skip for v1.
+    notes,
     variants,
   };
 }
@@ -146,8 +179,12 @@ export const luckyscentScraper: SourceScraper = {
       }
       const block = res.data?.products;
       if (!block) return;
-      for (const { node } of block.edges) {
-        const scraped = toScraped(node);
+      const scrapedPage = await mapWithConcurrency(
+        block.edges.map(({ node }) => node),
+        8,
+        toScraped,
+      );
+      for (const scraped of scrapedPage) {
         if (scraped) yield scraped;
       }
       if (!block.pageInfo.hasNextPage || !block.pageInfo.endCursor) return;

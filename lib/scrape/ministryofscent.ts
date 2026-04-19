@@ -1,5 +1,5 @@
-import * as cheerio from "cheerio";
 import type { ScrapedPerfume, ScrapedVariant, SourceScraper } from "./types";
+import { extractNotesFromMinistryOfScentHtml } from "./notes.mjs";
 import {
   normalizeStockStatus,
   parsePrice,
@@ -45,32 +45,6 @@ async function fetchPage(page: number): Promise<ShopifyProduct[]> {
   return body.products ?? [];
 }
 
-function extractNotesFromBody(html: string | null): string[] {
-  if (!html) return [];
-  const $ = cheerio.load(html);
-  const text = $.root().text();
-
-  // Look for a "Notes:" label followed by a comma/slash separated list.
-  const labeled = text.match(
-    /notes?\s*(?:[:\-–—])\s*([^\n\r.]+?)(?=\n|\.|$)/i,
-  );
-  if (labeled) {
-    return labeled[1]
-      .split(/[,\/]| and | & /i)
-      .map((s) => s.replace(/\s+/g, " ").trim())
-      .filter((s) => s.length > 1 && s.length < 60);
-  }
-
-  // Fallback: list-style notes in ul/li.
-  const fromList = $("ul li")
-    .map((_, el) => $(el).text().trim())
-    .get()
-    .filter((s) => s.length > 1 && s.length < 60);
-  if (fromList.length > 0 && fromList.length <= 20) return fromList;
-
-  return [];
-}
-
 function toScraped(p: ShopifyProduct): ScrapedPerfume | null {
   if (!p.vendor || !p.title) return null;
 
@@ -93,7 +67,7 @@ function toScraped(p: ShopifyProduct): ScrapedPerfume | null {
     sourceProductId: String(p.id),
     sourceTitle: p.title,
     sourceDescription: p.body_html,
-    notes: extractNotesFromBody(p.body_html),
+    notes: extractNotesFromMinistryOfScentHtml(p.body_html),
     variants,
   };
 }

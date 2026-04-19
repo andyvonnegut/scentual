@@ -18,7 +18,7 @@ export interface ScrapedPerfume {
   sourceProductId: string | null;
   sourceTitle: string;
   sourceDescription: string | null;
-  notes: string[];
+  notes: string[] | null;
   variants: ScrapedVariant[];
 }
 
