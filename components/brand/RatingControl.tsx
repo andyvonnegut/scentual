@@ -90,9 +90,9 @@ export function RatingControl({
 }
 
 const BOTTLE_PATH =
-  "M 4.3 5.5 L 8.7 5.5 Q 9 5.5 9 5.8 L 9 7.5 L 7.5 7.5 L 7.5 9 L 10 11 L 10 18.5 Q 10 19.5 9 19.5 L 4 19.5 Q 3 19.5 3 18.5 L 3 11 L 5.5 9 L 5.5 7.5 L 4 7.5 L 4 5.8 Q 4 5.5 4.3 5.5 Z";
+  "M 5.7 5 L 7.3 5 Q 7.5 5 7.5 5.2 L 7.5 10 L 10 11 L 10 18.5 Q 10 19.5 9 19.5 L 4 19.5 Q 3 19.5 3 18.5 L 3 11 L 5.5 10 L 5.5 5.2 Q 5.5 5 5.7 5 Z";
 const CLOUD_PATH =
-  "M 11.6 8.6 C 10.5 8.6 10.5 7 11.8 6.8 C 11.8 5.5 13 5 14 5.6 C 14.5 3.6 17 3.6 17.8 5.1 C 19 4.6 20 5.6 19.8 7 C 21 7.5 20 9 18.5 8.6 L 11.6 8.6 Z";
+  "M 9.5 6 Q 9 4 12 4 Q 13 2.5 14.5 4 Q 15.5 2.5 17 4 Q 20 4 19.5 6 Q 20 8 17 8 Q 15.5 9.5 14.5 8 Q 13 9.5 12 8 Q 9 8 9.5 6 Z";
 
 function BottleSpray({ filled, size }: { filled: boolean; size: number }) {
   if (filled) {
@@ -106,8 +106,6 @@ function BottleSpray({ filled, size }: { filled: boolean; size: number }) {
       >
         <path d={BOTTLE_PATH} fill="currentColor" />
         <path d={CLOUD_PATH} fill="currentColor" />
-        <circle cx="10" cy="6.8" r="0.45" fill="currentColor" />
-        <circle cx="11" cy="7.3" r="0.35" fill="currentColor" />
       </svg>
     );
   }
