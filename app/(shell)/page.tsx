@@ -16,8 +16,7 @@ export default async function Home() {
   return (
     <PageShell>
       <div className="flex flex-col gap-16">
-        <header className="flex flex-col gap-6 pt-8 pb-4">
-          <span className="micro-label">Scentual</span>
+        <header className="flex flex-col gap-4 pb-4">
           <h1 className="font-display text-6xl md:text-7xl leading-[0.95] tracking-tight text-[color:var(--text)] max-w-3xl">
             Lauren&apos;s personal archive of scent.
           </h1>
