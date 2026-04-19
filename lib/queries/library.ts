@@ -19,8 +19,8 @@ export async function getSavedPerfumes(filter: LibraryFilter = "all") {
       personal_perfume_user_fragrance_note_tags(
         user_fragrance_note_tag:user_fragrance_note_tags(id, name, slug)
       ),
-      personal_perfume_generic_tags(
-        generic_tag:generic_tags(id, name, slug)
+      personal_perfume_theme_tags(
+        theme_tag:theme_tags(id, name, slug)
       )
       `,
     )
@@ -39,7 +39,17 @@ export async function getPersonalPerfumeByPerfumeId(perfumeId: number) {
   const db = await createClient();
   const { data } = await db
     .from("personal_perfumes")
-    .select("*")
+    .select(
+      `
+      *,
+      personal_perfume_user_fragrance_note_tags(
+        user_fragrance_note_tag:user_fragrance_note_tags(id, name, slug)
+      ),
+      personal_perfume_theme_tags(
+        theme_tag:theme_tags(id, name, slug)
+      )
+      `,
+    )
     .eq("perfume_id", perfumeId)
     .maybeSingle();
   return data;
@@ -54,10 +64,10 @@ export async function getAllFragranceNoteTags() {
   return data ?? [];
 }
 
-export async function getAllGenericTags() {
+export async function getAllThemeTags() {
   const db = await createClient();
   const { data } = await db
-    .from("generic_tags")
+    .from("theme_tags")
     .select("id, name, slug")
     .order("name", { ascending: true });
   return data ?? [];

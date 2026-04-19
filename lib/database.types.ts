@@ -500,7 +500,7 @@ export type Database = {
         };
         Relationships: [];
       };
-      generic_tags: {
+      theme_tags: {
         Row: {
           id: number;
           name: string;
@@ -557,35 +557,35 @@ export type Database = {
           },
         ];
       };
-      personal_perfume_generic_tags: {
+      personal_perfume_theme_tags: {
         Row: {
           id: number;
           personal_perfume_id: number;
-          generic_tag_id: number;
+          theme_tag_id: number;
         };
         Insert: {
           id?: number;
           personal_perfume_id: number;
-          generic_tag_id: number;
+          theme_tag_id: number;
         };
         Update: {
           id?: number;
           personal_perfume_id?: number;
-          generic_tag_id?: number;
+          theme_tag_id?: number;
         };
         Relationships: [
           {
-            foreignKeyName: "personal_perfume_generic_tags_personal_perfume_id_fkey";
+            foreignKeyName: "personal_perfume_theme_tags_personal_perfume_id_fkey";
             columns: ["personal_perfume_id"];
             isOneToOne: false;
             referencedRelation: "personal_perfumes";
             referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "personal_perfume_generic_tags_generic_tag_id_fkey";
-            columns: ["generic_tag_id"];
+            foreignKeyName: "personal_perfume_theme_tags_theme_tag_id_fkey";
+            columns: ["theme_tag_id"];
             isOneToOne: false;
-            referencedRelation: "generic_tags";
+            referencedRelation: "theme_tags";
             referencedColumns: ["id"];
           },
         ];

@@ -10,8 +10,8 @@ const chipStyles = cva(
           "bg-[color:var(--bg-elevated)] text-[color:var(--text-soft)] border border-[color:var(--line)]",
         "fragrance-note":
           "bg-[color:var(--surface)] text-[color:var(--accent-strong)] border border-[color:var(--accent)]/40",
-        generic:
-          "bg-transparent text-[color:var(--text)] border border-[color:var(--text)]/20",
+        theme:
+          "bg-[color:var(--surface-2)] text-[color:var(--text)] border border-[color:var(--text)]/15",
       },
       size: {
         sm: "text-[10px] px-2 py-0.5",

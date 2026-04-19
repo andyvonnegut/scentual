@@ -1,4 +1,3 @@
-import * as cheerio from "cheerio";
 import type { ScrapedPerfume, ScrapedVariant, SourceScraper } from "./types";
 import {
   normalizeStockStatus,
@@ -6,154 +5,122 @@ import {
   parseSizeMl,
 } from "./normalize";
 
-const BASE = "https://www.luckyscent.com";
+// LuckyScent runs Shopify Hydrogen (Oxygen). Their Storefront GraphQL is
+// exposed unauthenticated at /api/2024-01/graphql.json, which beats parsing
+// the SSR'd hydration blob or the HTML.
+const ENDPOINT = "https://www.luckyscent.com/api/2024-01/graphql.json";
 const UA = "scentual-archivist/0.1 (+personal archive)";
+const PAGE_SIZE = 100;
 
-async function fetchText(url: string): Promise<string> {
-  const res = await fetch(url, { headers: { "User-Agent": UA } });
-  if (!res.ok) throw new Error(`LuckyScent ${url} → ${res.status}`);
-  return res.text();
-}
-
-async function fetchSitemapIndex(): Promise<string[]> {
-  const xml = await fetchText(`${BASE}/sitemap.xml`);
-  const $ = cheerio.load(xml, { xmlMode: true });
-  return $("sitemap > loc")
-    .map((_, el) => $(el).text().trim())
-    .get()
-    .filter((u) => u.includes("/sitemap/products/"));
-}
-
-async function fetchProductUrls(sitemapUrl: string): Promise<string[]> {
-  const xml = await fetchText(sitemapUrl);
-  const $ = cheerio.load(xml, { xmlMode: true });
-  return $("url > loc")
-    .map((_, el) => $(el).text().trim())
-    .get()
-    .filter((u) => u.includes("/products/"));
-}
-
-type LdJsonProduct = {
-  "@type"?: string | string[];
-  name?: string;
-  description?: string;
-  brand?: string | { name?: string };
-  sku?: string;
-  offers?: LdOffer | LdOffer[];
-};
-
-type LdOffer = {
-  "@type"?: string;
-  name?: string;
-  sku?: string;
-  price?: string | number;
-  priceCurrency?: string;
-  availability?: string;
-  itemOffered?: { name?: string };
-};
-
-function coerceArray<T>(v: T | T[] | undefined): T[] {
-  if (v === undefined) return [];
-  return Array.isArray(v) ? v : [v];
-}
-
-function extractLdProduct(html: string): LdJsonProduct | null {
-  const $ = cheerio.load(html);
-  const scripts = $('script[type="application/ld+json"]').toArray();
-  for (const s of scripts) {
-    try {
-      const text = $(s).contents().text().trim();
-      if (!text) continue;
-      const parsed = JSON.parse(text);
-      const items = Array.isArray(parsed) ? parsed : [parsed];
-      for (const item of items) {
-        const type = item?.["@type"];
-        const typeStr = Array.isArray(type) ? type.join(",") : type;
-        if (typeof typeStr === "string" && typeStr.includes("Product")) {
-          return item as LdJsonProduct;
+const QUERY = /* GraphQL */ `
+  query ProductsPage($cursor: String) {
+    products(first: ${PAGE_SIZE}, after: $cursor) {
+      pageInfo { hasNextPage endCursor }
+      edges {
+        node {
+          id
+          title
+          handle
+          vendor
+          productType
+          descriptionHtml
+          tags
+          variants(first: 50) {
+            edges {
+              node {
+                id
+                title
+                sku
+                availableForSale
+                price { amount currencyCode }
+                selectedOptions { name value }
+              }
+            }
+          }
         }
       }
-    } catch {
-      // skip malformed
     }
   }
-  return null;
+`;
+
+type GqlVariant = {
+  id: string;
+  title: string;
+  sku: string | null;
+  availableForSale: boolean;
+  price: { amount: string; currencyCode: string } | null;
+  selectedOptions: { name: string; value: string }[];
+};
+
+type GqlProduct = {
+  id: string;
+  title: string;
+  handle: string;
+  vendor: string | null;
+  productType: string | null;
+  descriptionHtml: string | null;
+  tags: string[];
+  variants: { edges: { node: GqlVariant }[] };
+};
+
+type GqlResponse = {
+  data?: {
+    products: {
+      pageInfo: { hasNextPage: boolean; endCursor: string | null };
+      edges: { node: GqlProduct }[];
+    };
+  };
+  errors?: { message: string }[];
+};
+
+async function fetchPage(cursor: string | null): Promise<GqlResponse> {
+  const res = await fetch(ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent": UA,
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ query: QUERY, variables: { cursor } }),
+  });
+  if (!res.ok) throw new Error(`LuckyScent GraphQL → ${res.status}`);
+  return res.json() as Promise<GqlResponse>;
 }
 
-function availabilityToStock(s: string | undefined) {
-  const x = (s ?? "").toLowerCase();
-  if (x.includes("instock")) return { available: true, raw: "in stock" };
-  if (x.includes("outofstock")) return { available: false, raw: "out of stock" };
-  if (x.includes("discontinued") || x.includes("unavailable")) {
-    return { available: false, raw: "unavailable" };
-  }
-  return { available: null as boolean | null, raw: null as string | null };
+function pickSizeLabel(v: GqlVariant): string {
+  const size = v.selectedOptions.find(
+    (o) => o.name.toLowerCase() === "size",
+  );
+  return size?.value ?? v.title ?? "default";
 }
 
-async function scrapeProductPage(
-  url: string,
-): Promise<ScrapedPerfume | null> {
-  const html = await fetchText(url);
-  const ld = extractLdProduct(html);
-  if (!ld) return null;
+function toScraped(p: GqlProduct): ScrapedPerfume | null {
+  if (!p.vendor || !p.title) return null;
 
-  const vendor =
-    typeof ld.brand === "object"
-      ? ld.brand?.name
-      : typeof ld.brand === "string"
-        ? ld.brand
-        : undefined;
-  if (!vendor || !ld.name) return null;
-
-  const offers = coerceArray(ld.offers);
-  const variants: ScrapedVariant[] = offers.map((o) => {
-    const sizeLabel = o.itemOffered?.name ?? o.name ?? "default";
-    const stock = availabilityToStock(o.availability);
+  const variants: ScrapedVariant[] = p.variants.edges.map(({ node: v }) => {
+    const sizeLabel = pickSizeLabel(v);
     return {
       sizeLabel,
       sizeValueMl: parseSizeMl(sizeLabel),
-      currentPrice: parsePrice(o.price ?? null),
-      currency: o.priceCurrency ?? "USD",
+      currentPrice: parsePrice(v.price?.amount ?? null),
+      currency: v.price?.currencyCode ?? "USD",
       currentStockStatus: normalizeStockStatus({
-        available: stock.available,
-        raw: stock.raw,
+        available: v.availableForSale,
       }),
-      currentStockRaw: stock.raw,
+      currentStockRaw: v.availableForSale ? "available" : "sold out",
     };
   });
 
-  if (variants.length === 0) {
-    variants.push({
-      sizeLabel: "default",
-      sizeValueMl: null,
-      currentPrice: null,
-      currency: "USD",
-      currentStockStatus: "unknown",
-      currentStockRaw: null,
-    });
-  }
-
-  // Try a few DOM selectors for notes; fall back to empty.
-  const $ = cheerio.load(html);
-  const notesText = $("[class*=notes], [data-notes]")
-    .first()
-    .text()
-    .trim();
-  const notes = notesText
-    ? notesText
-        .split(/[,\/]|•| and | & /i)
-        .map((s) => s.replace(/\s+/g, " ").trim())
-        .filter((s) => s.length > 1 && s.length < 60)
-    : [];
+  if (variants.length === 0) return null;
 
   return {
-    manufacturerName: vendor.trim(),
-    name: ld.name.trim(),
-    sourceUrl: url,
-    sourceProductId: ld.sku ?? null,
-    sourceTitle: ld.name,
-    sourceDescription: ld.description ?? null,
-    notes,
+    manufacturerName: p.vendor.trim(),
+    name: p.title.trim(),
+    sourceUrl: `https://www.luckyscent.com/products/${p.handle}`,
+    sourceProductId: p.id,
+    sourceTitle: p.title,
+    sourceDescription: p.descriptionHtml,
+    notes: [], // LuckyScent notes live in descriptionHtml free-text; skip for v1.
     variants,
   };
 }
@@ -162,17 +129,22 @@ export const luckyscentScraper: SourceScraper = {
   sourceSlug: "luckyscent",
   retailerSlug: "luckyscent",
   async *crawl() {
-    const sitemaps = await fetchSitemapIndex();
-    for (const sitemap of sitemaps) {
-      const urls = await fetchProductUrls(sitemap);
-      for (const url of urls) {
-        try {
-          const scraped = await scrapeProductPage(url);
-          if (scraped) yield scraped;
-        } catch {
-          // skip individual product failures; runner also catches.
-        }
+    let cursor: string | null = null;
+    for (let page = 0; page < 500; page++) {
+      const res = await fetchPage(cursor);
+      if (res.errors?.length) {
+        throw new Error(
+          `LuckyScent GraphQL errors: ${res.errors.map((e) => e.message).join("; ")}`,
+        );
       }
+      const block = res.data?.products;
+      if (!block) return;
+      for (const { node } of block.edges) {
+        const scraped = toScraped(node);
+        if (scraped) yield scraped;
+      }
+      if (!block.pageInfo.hasNextPage || !block.pageInfo.endCursor) return;
+      cursor = block.pageInfo.endCursor;
     }
   },
 };

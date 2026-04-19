@@ -3,16 +3,15 @@ import { PageShell } from "@/components/brand/PageShell";
 import { SectionHeader } from "@/components/brand/SectionHeader";
 import { Card } from "@/components/brand/Card";
 import { getAllPerfumesForPicker } from "@/lib/queries/journal";
+import { getAllManufacturers } from "@/lib/queries/perfumes";
 import { createJournalEntry } from "@/app/actions/journal";
+import { PerfumePicker } from "./_components/PerfumePicker";
 
-export default async function NewJournalEntryPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ perfume?: string }>;
-}) {
-  const params = await searchParams;
-  const perfumes = await getAllPerfumesForPicker();
-  const preselected = params.perfume ? Number(params.perfume) : null;
+export default async function NewJournalEntryPage() {
+  const [perfumes, houses] = await Promise.all([
+    getAllPerfumesForPicker(),
+    getAllManufacturers(),
+  ]);
   const today = new Date().toISOString().slice(0, 10);
 
   return (
@@ -23,22 +22,7 @@ export default async function NewJournalEntryPage({
           <form action={createJournalEntry} className="flex flex-col gap-5">
             <input type="hidden" name="redirect_to" value="/journal" />
 
-            <label className="flex flex-col gap-2">
-              <span className="micro-label">Perfume</span>
-              <select
-                name="perfume_id"
-                required
-                defaultValue={preselected ?? ""}
-                className="h-11 rounded-[var(--radius-md)] border border-[color:var(--line)] bg-[color:var(--bg-elevated)] px-3 focus:border-[color:var(--accent)] focus:outline-none"
-              >
-                <option value="">Choose a perfume…</option>
-                {perfumes.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.manufacturer?.name} · {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <PerfumePicker perfumes={perfumes} houses={houses} />
 
             <label className="flex flex-col gap-2">
               <span className="micro-label">Entry date</span>

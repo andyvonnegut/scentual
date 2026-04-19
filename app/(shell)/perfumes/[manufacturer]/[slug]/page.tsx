@@ -5,11 +5,23 @@ import { SectionHeader } from "@/components/brand/SectionHeader";
 import { Card } from "@/components/brand/Card";
 import { Chip } from "@/components/brand/Chip";
 import { SaveControls } from "@/components/brand/SaveControls";
+import { TagTypeahead } from "@/components/brand/TagTypeahead";
 import {
   getPerfumeByManufacturerAndSlug,
   getPriceHistory,
   getStockHistory,
 } from "@/lib/queries/perfumes";
+import {
+  getAllFragranceNoteTags,
+  getAllThemeTags,
+  getPersonalPerfumeByPerfumeId,
+} from "@/lib/queries/library";
+import {
+  addFragranceNoteTagByName,
+  addThemeTagByName,
+  detachFragranceNoteTag,
+  detachThemeTag,
+} from "@/app/actions/tags";
 import { JournalSection } from "./_components/JournalSection";
 
 function formatPrice(price: number | null, currency: string) {
@@ -50,6 +62,20 @@ export default async function PerfumeDetailPage({
   const perfume = await getPerfumeByManufacturerAndSlug(manufacturer, slug);
   if (!perfume) notFound();
   const returnPath = `/perfumes/${manufacturer}/${slug}`;
+
+  const personal = await getPersonalPerfumeByPerfumeId(perfume.id);
+  const [allFragranceTags, allThemeTags] = personal
+    ? await Promise.all([getAllFragranceNoteTags(), getAllThemeTags()])
+    : [[], []];
+
+  const attachedFragranceTags =
+    personal?.personal_perfume_user_fragrance_note_tags
+      ?.map((t) => t.user_fragrance_note_tag)
+      .filter((t): t is { id: number; name: string; slug: string } => t !== null) ?? [];
+  const attachedThemeTags =
+    personal?.personal_perfume_theme_tags
+      ?.map((t) => t.theme_tag)
+      .filter((t): t is { id: number; name: string; slug: string } => t !== null) ?? [];
 
   const storeNotes = (perfume.perfume_notes ?? [])
     .map((pn) => pn.note)
@@ -92,6 +118,31 @@ export default async function PerfumeDetailPage({
               initialInWanted={perfume.personal_perfumes?.in_wanted ?? false}
             />
           </div>
+
+          {personal && (
+            <div className="flex flex-col gap-6 border-t border-[color:var(--line)] pt-6">
+              <TagTypeahead
+                label="Your fragrance-note tags"
+                placeholder="Type a note…"
+                listId={`frag-tags-${perfume.id}`}
+                variant="fragrance-note"
+                attached={attachedFragranceTags}
+                suggestions={allFragranceTags}
+                onAdd={addFragranceNoteTagByName.bind(null, personal.id)}
+                onRemove={detachFragranceNoteTag.bind(null, personal.id)}
+              />
+              <TagTypeahead
+                label="Themes"
+                placeholder="Type a theme…"
+                listId={`theme-tags-${perfume.id}`}
+                variant="theme"
+                attached={attachedThemeTags}
+                suggestions={allThemeTags}
+                onAdd={addThemeTagByName.bind(null, personal.id)}
+                onRemove={detachThemeTag.bind(null, personal.id)}
+              />
+            </div>
+          )}
 
           {storeNotes.length > 0 && (
             <section className="flex flex-col gap-3">
@@ -147,7 +198,7 @@ export default async function PerfumeDetailPage({
                       {listing.retailer?.name ?? "—"}
                     </span>
                     {!listing.active && (
-                      <Chip variant="generic" size="sm">
+                      <Chip variant="theme" size="sm">
                         Inactive
                       </Chip>
                     )}

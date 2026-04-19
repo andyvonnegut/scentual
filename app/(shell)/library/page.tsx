@@ -3,12 +3,7 @@ import { PageShell } from "@/components/brand/PageShell";
 import { SectionHeader } from "@/components/brand/SectionHeader";
 import { Card } from "@/components/brand/Card";
 import { cn } from "@/lib/utils";
-import {
-  getAllFragranceNoteTags,
-  getAllGenericTags,
-  getSavedPerfumes,
-  type LibraryFilter,
-} from "@/lib/queries/library";
+import { getSavedPerfumes, type LibraryFilter } from "@/lib/queries/library";
 import { AddPerfumeSearch } from "./_components/AddPerfumeSearch";
 import { SavedCard } from "./_components/SavedCard";
 
@@ -29,11 +24,7 @@ export default async function LibraryPage({
     ? (params.filter as LibraryFilter)
     : "all";
 
-  const [saved, allFragranceTags, allGenericTags] = await Promise.all([
-    getSavedPerfumes(active),
-    getAllFragranceNoteTags(),
-    getAllGenericTags(),
-  ]);
+  const saved = await getSavedPerfumes(active);
 
   return (
     <PageShell>
@@ -81,12 +72,7 @@ export default async function LibraryPage({
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {saved.map((s) => (
-              <SavedCard
-                key={s.id}
-                saved={s}
-                allFragranceTags={allFragranceTags}
-                allGenericTags={allGenericTags}
-              />
+              <SavedCard key={s.id} saved={s} />
             ))}
           </div>
         )}

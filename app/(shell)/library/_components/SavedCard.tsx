@@ -2,9 +2,8 @@ import Link from "next/link";
 import { Card } from "@/components/brand/Card";
 import { Chip } from "@/components/brand/Chip";
 import { SaveControls } from "@/components/brand/SaveControls";
-import { TagManager } from "./TagManager";
 
-type SavedNote = { id: number; name: string; slug: string };
+type Ref = { id: number; name: string; slug: string };
 
 type Saved = {
   id: number;
@@ -17,25 +16,17 @@ type Saved = {
     name: string;
     slug: string;
     manufacturer: { id: number; name: string; slug: string } | null;
-    perfume_notes: { note: SavedNote | null }[] | null;
+    perfume_notes: { note: Ref | null }[] | null;
   } | null;
   personal_perfume_user_fragrance_note_tags:
-    | { user_fragrance_note_tag: SavedNote | null }[]
+    | { user_fragrance_note_tag: Ref | null }[]
     | null;
-  personal_perfume_generic_tags:
-    | { generic_tag: SavedNote | null }[]
+  personal_perfume_theme_tags:
+    | { theme_tag: Ref | null }[]
     | null;
 };
 
-export function SavedCard({
-  saved,
-  allFragranceTags,
-  allGenericTags,
-}: {
-  saved: Saved;
-  allFragranceTags: SavedNote[];
-  allGenericTags: SavedNote[];
-}) {
+export function SavedCard({ saved }: { saved: Saved }) {
   const perfume = saved.perfume;
   if (!perfume) return null;
   const href = perfume.manufacturer
@@ -45,17 +36,17 @@ export function SavedCard({
   const storeNotes =
     perfume.perfume_notes
       ?.map((pn) => pn.note)
-      .filter((n): n is SavedNote => n !== null) ?? [];
+      .filter((n): n is Ref => n !== null) ?? [];
 
   const fragranceTags =
     saved.personal_perfume_user_fragrance_note_tags
       ?.map((t) => t.user_fragrance_note_tag)
-      .filter((t): t is SavedNote => t !== null) ?? [];
+      .filter((t): t is Ref => t !== null) ?? [];
 
-  const genericTags =
-    saved.personal_perfume_generic_tags
-      ?.map((t) => t.generic_tag)
-      .filter((t): t is SavedNote => t !== null) ?? [];
+  const themeTags =
+    saved.personal_perfume_theme_tags
+      ?.map((t) => t.theme_tag)
+      .filter((t): t is Ref => t !== null) ?? [];
 
   return (
     <Card>
@@ -70,7 +61,7 @@ export function SavedCard({
                 </Chip>
               )}
               {saved.in_wanted && (
-                <Chip variant="generic" size="sm">
+                <Chip variant="theme" size="sm">
                   Wanted
                 </Chip>
               )}
@@ -102,15 +93,15 @@ export function SavedCard({
           </div>
         )}
 
-        {(fragranceTags.length > 0 || genericTags.length > 0) && (
+        {(fragranceTags.length > 0 || themeTags.length > 0) && (
           <div className="flex flex-wrap gap-1 border-t border-[color:var(--line)] pt-3">
             {fragranceTags.map((t) => (
               <Chip key={`f-${t.id}`} variant="fragrance-note" size="sm">
                 {t.name}
               </Chip>
             ))}
-            {genericTags.map((t) => (
-              <Chip key={`g-${t.id}`} variant="generic" size="sm">
+            {themeTags.map((t) => (
+              <Chip key={`t-${t.id}`} variant="theme" size="sm">
                 {t.name}
               </Chip>
             ))}
@@ -122,14 +113,6 @@ export function SavedCard({
           initialInCollection={saved.in_collection}
           initialInWanted={saved.in_wanted}
           compact
-        />
-
-        <TagManager
-          personalPerfumeId={saved.id}
-          allFragranceTags={allFragranceTags}
-          allGenericTags={allGenericTags}
-          attachedFragranceTagIds={fragranceTags.map((t) => t.id)}
-          attachedGenericTagIds={genericTags.map((t) => t.id)}
         />
       </div>
     </Card>

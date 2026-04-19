@@ -5,7 +5,6 @@ const NAV = [
   { href: "/browse", label: "Browse" },
   { href: "/library", label: "Library" },
   { href: "/journal", label: "Journal" },
-  { href: "/tags", label: "Tags" },
 ];
 
 export default function ShellLayout({
