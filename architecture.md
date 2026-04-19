@@ -45,7 +45,7 @@ Server-rendered shell plus a live client filter controller. Header shows only **
   - pressing `Enter` on typed text first resolves a case-insensitive exact note-name match, then falls back to the first filtered suggestion, and only creates a broad note-word chip via repeated `note_q=<text>` params when there are no matching suggestions at all
   - all selected note chips are ANDed, so every exact or broad note filter must match either a store note or a personal note attachment
 
-The client updates the current URL with `window.history.replaceState` and fetches fresh results from `GET /api/catalog/browse`. The page still hydrates from the URL on first load/refresh. Up to 120 cards are rendered, with exact total counts shown when more matches exist. Each card shows perfume name, house link, and up to 6 canonical store notes as `store` chips. Data: `browsePerfumes`, `getAllManufacturers`, and `getAllNotes`. `getAllNotes` paginates the full canonical note vocabulary instead of relying on Supabase's default 1,000-row page.
+The client updates the current URL with `window.history.replaceState`, listens to live `searchParams` changes, and fetches fresh results from `GET /api/catalog/browse`. The page still hydrates from the URL on first load/refresh, and browser Back/Forward is expected to restore the current query string plus the visible filter UI from those params. Up to 120 cards are rendered, with exact total counts shown when more matches exist. Each card shows perfume name, house link, and up to 6 canonical store notes as `store` chips. Data: `browsePerfumes`, `getAllManufacturers`, and `getAllNotes`. `getAllNotes` paginates the full canonical note vocabulary instead of relying on Supabase's default 1,000-row page.
 
 ### `/browse/manufacturers/[slug]` — House page
 All perfumes from one manufacturer. Data: `getManufacturerBySlug` → `getPerfumesByManufacturer`.
@@ -130,7 +130,7 @@ Read-only, server-only. Grouped by domain:
 
 ### Data flow
 
-**Reads:** server component → `lib/queries/*` → server Supabase client (anon, RLS-gated, cookie-aware) → rendered HTML. `/browse` is mixed: the page does an initial server read from URL params, then the client filter shell updates `window.history.replaceState` and fetches incremental result updates from `GET /api/catalog/browse`.
+**Reads:** server component → `lib/queries/*` → server Supabase client (anon, RLS-gated, cookie-aware) → rendered HTML. `/browse` is mixed: the page does an initial server read from URL params, then the client filter shell updates `window.history.replaceState`, observes `searchParams` for back/forward restoration, and fetches incremental result updates from `GET /api/catalog/browse`.
 
 **Writes:** client component → server action → service client (service role, RLS bypassed) → `revalidatePath("/", "layout")` → affected server pages re-render on next request. Client components use `useTransition` for optimistic UI.
 

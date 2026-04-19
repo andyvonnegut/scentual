@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Card } from "@/components/brand/Card";
 import { Chip } from "@/components/brand/Chip";
@@ -10,6 +11,7 @@ import {
   getBrowseNoteFilterKey,
   isBrowseExactNoteFilter,
   normalizeBrowseQuery,
+  parseBrowseNoteParams,
   type BrowseFilterState,
   type BrowseManufacturerOption,
   type BrowseNoteFilter,
@@ -398,6 +400,12 @@ export function BrowseClient({
   const initialResponseRef = useRef(initialResponse);
   const initialKeyRef = useRef(buildBrowseSearchParams(initialState).toString());
   const abortRef = useRef<AbortController | null>(null);
+  const pendingUrlKeyRef = useRef<string | null>(null);
+  const searchParams = useSearchParams();
+  const noteNameByKey = useMemo(
+    () => new Map(noteOptions.map((note) => [note.slug, note.name])),
+    [noteOptions],
+  );
 
   const [q, setQ] = useState(initialState.q ?? "");
   const [manufacturerSlug, setManufacturerSlug] = useState(
@@ -407,6 +415,31 @@ export function BrowseClient({
   const [response, setResponse] = useState(initialResponse);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const searchParamsKey = searchParams.toString();
+
+  const urlState = useMemo(() => {
+    const params = new URLSearchParams(searchParamsKey);
+    const notes = parseBrowseNoteParams(
+      params.getAll("note"),
+      params.getAll("note_q"),
+    ).map((note) => ({
+      ...note,
+      name:
+        note.type === "exact"
+          ? (noteNameByKey.get(note.slug) ?? note.name ?? note.slug)
+          : (note.name ?? note.query),
+    }));
+
+    return {
+      q: params.get("q") ?? "",
+      manufacturerSlug: params.get("manufacturer") ?? "",
+      notes,
+    } satisfies BrowseFilterState;
+  }, [noteNameByKey, searchParamsKey]);
+  const urlKey = useMemo(
+    () => buildBrowseSearchParams(urlState).toString(),
+    [urlState],
+  );
 
   const requestParams = useMemo(
     () =>
@@ -418,7 +451,6 @@ export function BrowseClient({
     [manufacturerSlug, q, selectedNotes],
   );
   const requestKey = requestParams.toString();
-  const href = requestKey ? `/browse?${requestKey}` : "/browse";
   const cleanedQuery = normalizeBrowseQuery(q);
   const activeManufacturer =
     manufacturers.find((manufacturer) => manufacturer.slug === manufacturerSlug) ??
@@ -426,9 +458,41 @@ export function BrowseClient({
   const hasActiveFilters =
     cleanedQuery.length > 0 || manufacturerSlug.length > 0 || selectedNotes.length > 0;
 
+  const applyFilters = (nextState: BrowseFilterState) => {
+    const nextQ = nextState.q ?? "";
+    const nextManufacturerSlug = nextState.manufacturerSlug ?? "";
+    const nextNotes = nextState.notes ?? [];
+    const nextParams = buildBrowseSearchParams({
+      q: nextQ,
+      manufacturerSlug: nextManufacturerSlug,
+      notes: nextNotes,
+    });
+    const nextKey = nextParams.toString();
+    const nextHref = nextKey ? `/browse?${nextKey}` : "/browse";
+
+    pendingUrlKeyRef.current = nextKey;
+    setQ(nextQ);
+    setManufacturerSlug(nextManufacturerSlug);
+    setSelectedNotes(nextNotes);
+    window.history.replaceState(null, "", nextHref);
+  };
+
   useEffect(() => {
-    window.history.replaceState(null, "", href);
-  }, [href]);
+    if (urlKey === requestKey) {
+      if (pendingUrlKeyRef.current === urlKey) {
+        pendingUrlKeyRef.current = null;
+      }
+      return;
+    }
+
+    if (pendingUrlKeyRef.current === requestKey) {
+      return;
+    }
+
+    setQ(urlState.q ?? "");
+    setManufacturerSlug(urlState.manufacturerSlug ?? "");
+    setSelectedNotes(urlState.notes ?? []);
+  }, [requestKey, urlKey, urlState]);
 
   useEffect(() => {
     abortRef.current?.abort();
@@ -511,7 +575,13 @@ export function BrowseClient({
             <span className="micro-label">Search</span>
             <input
               value={q}
-              onChange={(event) => setQ(event.target.value)}
+              onChange={(event) =>
+                applyFilters({
+                  q: event.target.value,
+                  manufacturerSlug,
+                  notes: selectedNotes,
+                })
+              }
               placeholder="Type any perfume, house, or note words..."
               className={INPUT_CLASS}
             />
@@ -521,21 +591,35 @@ export function BrowseClient({
             <HouseCombobox
               manufacturers={manufacturers}
               manufacturerSlug={manufacturerSlug}
-              onChange={setManufacturerSlug}
+              onChange={(nextManufacturerSlug) =>
+                applyFilters({
+                  q,
+                  manufacturerSlug: nextManufacturerSlug,
+                  notes: selectedNotes,
+                })
+              }
             />
             <NotesCombobox
               selected={selectedNotes}
               options={noteOptions}
-              onChange={setSelectedNotes}
+              onChange={(nextNotes) =>
+                applyFilters({
+                  q,
+                  manufacturerSlug,
+                  notes: nextNotes,
+                })
+              }
             />
             <div className="flex lg:pt-6">
               <button
                 type="button"
-                onClick={() => {
-                  setQ("");
-                  setManufacturerSlug("");
-                  setSelectedNotes([]);
-                }}
+                onClick={() =>
+                  applyFilters({
+                    q: "",
+                    manufacturerSlug: "",
+                    notes: [],
+                  })
+                }
                 disabled={!hasActiveFilters}
                 className="h-11 rounded-[var(--radius-md)] border border-[color:var(--line)] px-4 text-sm text-[color:var(--text-soft)] transition-colors hover:text-[color:var(--text)] disabled:cursor-not-allowed disabled:opacity-50"
               >
