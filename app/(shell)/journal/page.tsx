@@ -2,15 +2,8 @@ import Link from "next/link";
 import { PageShell } from "@/components/brand/PageShell";
 import { SectionHeader } from "@/components/brand/SectionHeader";
 import { Card } from "@/components/brand/Card";
+import { JournalEntryCard } from "@/components/brand/JournalEntryCard";
 import { listJournalEntries } from "@/lib/queries/journal";
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 export default async function JournalPage({
   searchParams,
@@ -24,7 +17,7 @@ export default async function JournalPage({
   return (
     <PageShell>
       <div className="flex flex-col gap-10">
-        <SectionHeader label="Journal" title="Your writings on scent">
+        <SectionHeader title="Curated scentual memories...">
           <div className="flex items-center gap-4">
             <p className="text-[color:var(--text-soft)] text-base">
               {entries.length} {entries.length === 1 ? "entry" : "entries"}
@@ -54,31 +47,12 @@ export default async function JournalPage({
         ) : (
           <div className="flex flex-col gap-6">
             {entries.map((e) => (
-              <Card key={e.id}>
-                <article className="flex flex-col gap-3">
-                  <div className="flex items-baseline justify-between">
-                    <span className="micro-label">
-                      {formatDate(e.entry_date)}
-                    </span>
-                    {e.perfume && (
-                      <Link
-                        href={`/perfumes/${e.perfume.manufacturer?.slug ?? ""}/${e.perfume.slug}`}
-                        className="text-xs text-[color:var(--text-soft)] hover:text-[color:var(--accent-strong)]"
-                      >
-                        {e.perfume.manufacturer?.name} · {e.perfume.name} ↗
-                      </Link>
-                    )}
-                  </div>
-                  {e.title && (
-                    <h3 className="font-display text-2xl leading-tight">
-                      {e.title}
-                    </h3>
-                  )}
-                  <p className="whitespace-pre-wrap text-[color:var(--text)] leading-relaxed">
-                    {e.body}
-                  </p>
-                </article>
-              </Card>
+              <JournalEntryCard
+                key={e.id}
+                entry={e}
+                perfume={e.perfume ?? undefined}
+                returnPath="/journal"
+              />
             ))}
           </div>
         )}

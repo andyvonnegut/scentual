@@ -1,14 +1,7 @@
 import Link from "next/link";
+import { JournalEntryCard } from "@/components/brand/JournalEntryCard";
 import { listJournalEntriesForPerfume } from "@/lib/queries/journal";
 import { NewJournalEntry } from "./NewJournalEntry";
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 export async function JournalSection({
   perfumeId,
@@ -42,21 +35,12 @@ export async function JournalSection({
           <span className="micro-label">Past entries</span>
           <ul className="flex flex-col gap-3">
             {entries.map((e) => (
-              <li
-                key={e.id}
-                className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[color:var(--line)] border-l-2 border-l-[color:var(--accent)] bg-[color:var(--bg-elevated)] p-4"
-              >
-                <div className="flex items-baseline gap-3">
-                  <span className="micro-label">{formatDate(e.entry_date)}</span>
-                  {e.title && (
-                    <span className="font-display text-lg leading-tight">
-                      {e.title}
-                    </span>
-                  )}
-                </div>
-                <p className="whitespace-pre-wrap text-sm text-[color:var(--text)] leading-relaxed">
-                  {e.body}
-                </p>
+              <li key={e.id}>
+                <JournalEntryCard
+                  entry={e}
+                  returnPath={returnPath}
+                  compact
+                />
               </li>
             ))}
           </ul>
