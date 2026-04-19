@@ -171,7 +171,7 @@ export default async function PerfumeDetailPage({
           {personal && (
             <div className="flex flex-col gap-6 border-t border-[color:var(--line)] pt-6">
               <TagTypeahead
-                label="Your fragrance-note tags"
+                label="Fragrance notes"
                 placeholder="Type a note…"
                 listId={`frag-tags-${perfume.id}`}
                 variant="fragrance-note"

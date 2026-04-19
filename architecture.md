@@ -215,7 +215,7 @@ Small hand-rolled design system. No shadcn, no headless-ui.
 - **`Card.tsx`** — rounded, `bg-elevated`, soft shadow on hover.
 - **`Chip.tsx`** — CVA. Variants: `store` (read-only store notes), `fragrance-note` (accent-toned, for fragrance notes), `theme` (neutral, for theme tags). Sizes: `sm | md`.
 - **`SaveControls.tsx`** — *client.* Two toggle buttons (Collection / Wanted) with `useTransition`. `compact` variant for `SavedCard`.
-- **`TagTypeahead.tsx`** — *client.* Input + datalist of unattached tags; attached tags render as removable pills. Variant prop: `fragrance-note | theme`.
+- **`TagTypeahead.tsx`** — *client.* Combobox input with a custom listbox dropdown of unattached tags (filtered by the typed query). Clicking a suggestion or pressing Enter on a highlighted suggestion commits it immediately; pressing Enter on unmatched free text commits the typed value. Attached tags render as removable pills. Variant prop: `fragrance-note | theme`.
 - **`PageShell.tsx`** — max-width 1240px wrapper.
 - **`SectionHeader.tsx`** — micro-label + `font-display` heading + optional description/children.
 
