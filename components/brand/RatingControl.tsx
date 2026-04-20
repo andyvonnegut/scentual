@@ -53,7 +53,7 @@ export function RatingsControlGroup({
   perfumeId,
   initialRatings,
   size = "md",
-  showValues = true,
+  showValues = false,
   className,
 }: RatingsControlGroupProps) {
   return (
@@ -78,7 +78,7 @@ export function RatingControl({
   initialRating,
   size = "md",
   showLabel = true,
-  showValue = true,
+  showValue = false,
 }: RatingControlProps) {
   const [rating, setLocalRating] = useState<RatingValue>(initialRating);
   const [hover, setHover] = useState<RatingValue>(null);
@@ -91,7 +91,6 @@ export function RatingControl({
   const buttonGap = size === "sm" ? "gap-0.5" : "gap-1";
   const metaText = size === "sm" ? "text-[11px]" : "text-xs";
   const config = SCALE_CONFIG[scale];
-  const statusText = error ? error : rating != null ? `${rating} / 5` : "Not rated";
 
   const handleClick = (value: number) => {
     const prev = rating;
@@ -146,7 +145,7 @@ export function RatingControl({
           );
         })}
       </div>
-      {(showLabel || showValue) && (
+      {(showLabel || error || showValue) && (
         <span
           id={showLabel ? labelId : undefined}
           className={cn(
@@ -159,7 +158,15 @@ export function RatingControl({
               {config.label}
             </span>
           )}
-          {showValue && <span className="tabular-nums">{statusText}</span>}
+          {error ? (
+            <span>{error}</span>
+          ) : (
+            showValue && (
+              <span className="tabular-nums">
+                {rating != null ? `${rating} / 5` : "Not rated"}
+              </span>
+            )
+          )}
         </span>
       )}
     </div>
