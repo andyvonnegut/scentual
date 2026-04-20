@@ -46,7 +46,7 @@ const SCALE_CONFIG: Record<PersonalRatingScale, ScaleConfig> = {
   },
 };
 
-const SCALE_ORDER: PersonalRatingScale[] = ["projection", "overall", "design"];
+const SCALE_ORDER: PersonalRatingScale[] = ["overall", "projection", "design"];
 const ICON_COUNT = 5;
 
 export function RatingsControlGroup({
@@ -94,6 +94,7 @@ export function RatingControl({
     size === "sm"
       ? "text-[11px] uppercase tracking-[0.12em]"
       : "text-xs uppercase tracking-[0.14em]";
+  const labelWidth = size === "sm" ? "w-[4.75rem]" : "w-[5.5rem]";
   const config = SCALE_CONFIG[scale];
 
   const handleClick = (value: number) => {
@@ -113,9 +114,12 @@ export function RatingControl({
 
   return (
     <div className={cn("flex items-center justify-between", rowGap)}>
-      <div className={cn("flex min-w-0 items-center", rowGap)}>
+      <div className={cn("flex min-w-0 items-center justify-start", rowGap)}>
         {showLabel && (
-          <span id={labelId} className={cn("micro-label shrink-0", labelText)}>
+          <span
+            id={labelId}
+            className={cn("micro-label shrink-0 text-left", labelText, labelWidth)}
+          >
             {config.label}
           </span>
         )}
