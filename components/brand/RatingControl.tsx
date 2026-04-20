@@ -90,6 +90,7 @@ export function RatingControl({
   const rowGap = size === "sm" ? "gap-2.5" : "gap-3";
   const buttonGap = size === "sm" ? "gap-0.5" : "gap-1";
   const metaText = size === "sm" ? "text-[11px]" : "text-xs";
+  const valueGap = size === "sm" ? "gap-2" : "gap-2.5";
   const labelText =
     size === "sm"
       ? "text-[11px] uppercase tracking-[0.12em]"
@@ -113,7 +114,7 @@ export function RatingControl({
   };
 
   return (
-    <div className={cn("flex items-center justify-between", rowGap)}>
+    <div className={cn("flex items-center justify-start", rowGap)}>
       <div className={cn("flex min-w-0 items-center justify-start", rowGap)}>
         {showLabel && (
           <span
@@ -123,53 +124,55 @@ export function RatingControl({
             {config.label}
           </span>
         )}
-        <div
-          role="radiogroup"
-          aria-label={showLabel ? undefined : `${config.label} rating`}
-          aria-labelledby={showLabel ? labelId : undefined}
-          className={cn("flex items-center", buttonGap)}
-          onMouseLeave={() => setHover(null)}
-        >
-          {Array.from({ length: ICON_COUNT }, (_, i) => i + 1).map((value) => {
-            const isFilled = value <= active;
-            const isSelected = rating === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                role="radio"
-                aria-checked={isSelected}
-                aria-label={`${config.label} ${value} out of 5`}
-                disabled={isPending}
-                onMouseEnter={() => setHover(value)}
-                onFocus={() => setHover(value)}
-                onBlur={() => setHover(null)}
-                onClick={() => handleClick(value)}
-                className={cn(
-                  "relative grid place-items-center rounded-full transition-all duration-[160ms] disabled:opacity-60",
-                  "p-1 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--bg)]",
-                )}
-              >
-                <RatingGlyph
-                  filled={isFilled}
-                  icon={config.icon}
-                  size={iconSize}
-                />
-              </button>
-            );
-          })}
+        <div className={cn("flex items-center", valueGap)}>
+          <div
+            role="radiogroup"
+            aria-label={showLabel ? undefined : `${config.label} rating`}
+            aria-labelledby={showLabel ? labelId : undefined}
+            className={cn("flex items-center", buttonGap)}
+            onMouseLeave={() => setHover(null)}
+          >
+            {Array.from({ length: ICON_COUNT }, (_, i) => i + 1).map((value) => {
+              const isFilled = value <= active;
+              const isSelected = rating === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={isSelected}
+                  aria-label={`${config.label} ${value} out of 5`}
+                  disabled={isPending}
+                  onMouseEnter={() => setHover(value)}
+                  onFocus={() => setHover(value)}
+                  onBlur={() => setHover(null)}
+                  onClick={() => handleClick(value)}
+                  className={cn(
+                    "relative grid place-items-center rounded-full transition-all duration-[160ms] disabled:opacity-60",
+                    "p-1 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--bg)]",
+                  )}
+                >
+                  <RatingGlyph
+                    filled={isFilled}
+                    icon={config.icon}
+                    size={iconSize}
+                  />
+                </button>
+              );
+            })}
+          </div>
+          {showValue && (
+            <span
+              className={cn(
+                "shrink-0 tabular-nums text-[color:var(--text-soft)]",
+                metaText,
+              )}
+            >
+              {error ? error : rating != null ? `${rating} / 5` : "Not rated"}
+            </span>
+          )}
         </div>
       </div>
-      {showValue && (
-        <span
-          className={cn(
-            "shrink-0 tabular-nums text-[color:var(--text-soft)]",
-            metaText,
-          )}
-        >
-          {error ? error : rating != null ? `${rating} / 5` : "Not rated"}
-        </span>
-      )}
     </div>
   );
 }
