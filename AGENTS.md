@@ -34,3 +34,9 @@ Treat commit + push as part of completing the request, not as an optional follow
 - new env vars or config changes (`vercel.json`, `next.config.ts`, `tsconfig.json`)
 
 If a change invalidates something in `architecture.md`, fix the doc before you finish. Treat a stale `architecture.md` as a bug.
+
+# Environment variables
+
+Vercel is the source of truth for env vars. Pull them into `.env.local` with `vercel env pull .env.local --environment production --yes` — the file is gitignored. `.env.example` lists the keys the app expects.
+
+`CRON_SECRET` must be set in the Vercel **Production** environment: Vercel only attaches the `Authorization: Bearer $CRON_SECRET` header to cron invocations when that variable exists, and `app/api/cron/scrape/[source]/route.ts` returns 401 without it. If `scrape_runs` has no new rows after a scheduled window, check that this env var is still present before debugging anything else.
