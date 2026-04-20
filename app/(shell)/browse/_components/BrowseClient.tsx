@@ -562,8 +562,8 @@ export function BrowseClient({
             {isLoading ? " · Updating..." : ""}
           </p>
           <p className="text-sm">
-            Live search matches perfume names, houses, and notes from either
-            store data or your personal note attachments.
+            Live search matches perfume names, houses, and accords from store
+            data or your personal note attachments.
           </p>
           {error && <p className="text-sm text-[color:var(--warning)]">{error}</p>}
         </div>
@@ -582,7 +582,7 @@ export function BrowseClient({
                   notes: selectedNotes,
                 })
               }
-              placeholder="Type any perfume, house, or note words..."
+              placeholder="Type any perfume, house, or accord words..."
               className={INPUT_CLASS}
             />
           </label>

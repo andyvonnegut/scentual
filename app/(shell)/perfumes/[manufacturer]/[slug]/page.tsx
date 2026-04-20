@@ -57,6 +57,23 @@ function formatDate(iso: string) {
   });
 }
 
+function formatDecimal(value: number | null) {
+  if (value === null) return "—";
+  return value.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function formatInteger(value: number | null) {
+  if (value === null) return "—";
+  return new Intl.NumberFormat("en-US").format(value);
+}
+
+function splitParagraphs(value: string | null) {
+  return value
+    ?.split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean) ?? [];
+}
+
 export default async function PerfumeDetailPage({
   params,
 }: {
@@ -83,13 +100,29 @@ export default async function PerfumeDetailPage({
       ?.map((t) => t.theme_tag)
       .filter((t): t is { id: number; name: string; slug: string } => t !== null) ?? [];
 
-  const storeNotes = (perfume.perfume_notes ?? [])
+  const accords = (perfume.perfume_notes ?? [])
     .map((pn) => pn.note)
     .filter(Boolean) as { id: number; name: string; slug: string }[];
-  const storeNoteSlugs = new Set(storeNotes.map((note) => note.slug));
+  const accordSlugs = new Set(accords.map((note) => note.slug));
   const availablePersonalNotes = allNotes.filter(
-    (note) => !storeNoteSlugs.has(note.slug),
+    (note) => !accordSlugs.has(note.slug),
   );
+  const fragranticaNoteSections = [
+    { label: "Top", notes: perfume.notes_top ?? [] },
+    { label: "Middle", notes: perfume.notes_middle ?? [] },
+    { label: "Base", notes: perfume.notes_base ?? [] },
+  ].filter((section) => section.notes.length > 0);
+  const fragranticaDescription = splitParagraphs(perfume.canonical_description);
+  const hasFragranticaMetadata =
+    perfume.release_year !== null ||
+    perfume.gender !== null ||
+    perfume.fragrantica_rating !== null ||
+    perfume.fragrantica_votes !== null ||
+    perfume.fragrantica_longevity !== null ||
+    perfume.fragrantica_sillage !== null ||
+    perfume.fragrantica_url !== null ||
+    fragranticaNoteSections.length > 0 ||
+    fragranticaDescription.length > 0;
 
   const variantInfo = new Map<
     number,
@@ -230,17 +263,89 @@ export default async function PerfumeDetailPage({
             </div>
           )}
 
-          {storeNotes.length > 0 && (
+          {accords.length > 0 && (
             <section className="flex flex-col gap-3">
-              <span className="micro-label">Store notes</span>
+              <span className="micro-label">Accords</span>
               <div className="flex flex-wrap gap-1.5">
-                {storeNotes.map((n) => (
+                {accords.map((n) => (
                   <Chip key={n.id} variant="store">
                     {n.name}
                   </Chip>
                 ))}
               </div>
             </section>
+          )}
+
+          {hasFragranticaMetadata && (
+            <Card className="flex flex-col gap-5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="micro-label">Fragrantica</span>
+                {perfume.fragrantica_url && (
+                  <a
+                    href={perfume.fragrantica_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs uppercase tracking-[0.12em] text-[color:var(--text-soft)] hover:text-[color:var(--accent-strong)]"
+                  >
+                    View source ↗
+                  </a>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-3">
+                <MetadataCell
+                  label="Year"
+                  value={
+                    perfume.release_year === null ? "—" : String(perfume.release_year)
+                  }
+                />
+                <MetadataCell label="Gender" value={perfume.gender ?? "—"} />
+                <MetadataCell
+                  label="Rating"
+                  value={formatDecimal(perfume.fragrantica_rating)}
+                />
+                <MetadataCell
+                  label="Votes"
+                  value={formatInteger(perfume.fragrantica_votes)}
+                />
+                <MetadataCell
+                  label="Longevity"
+                  value={perfume.fragrantica_longevity ?? "—"}
+                />
+                <MetadataCell
+                  label="Sillage"
+                  value={perfume.fragrantica_sillage ?? "—"}
+                />
+              </div>
+
+              {fragranticaNoteSections.length > 0 && (
+                <div className="flex flex-col gap-4 border-t border-[color:var(--line)] pt-5">
+                  <span className="micro-label">Notes</span>
+                  {fragranticaNoteSections.map((section) => (
+                    <div key={section.label} className="flex flex-col gap-2">
+                      <span className="text-xs uppercase tracking-[0.12em] text-[color:var(--text-soft)]">
+                        {section.label}
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {section.notes.map((note) => (
+                          <Chip key={`${section.label}-${note}`} variant="fragrance-note">
+                            {note}
+                          </Chip>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {fragranticaDescription.length > 0 && (
+                <div className="flex flex-col gap-3 border-t border-[color:var(--line)] pt-5 text-sm leading-relaxed text-[color:var(--text-soft)]">
+                  {fragranticaDescription.map((paragraph, index) => (
+                    <p key={index}>{paragraph}</p>
+                  ))}
+                </div>
+              )}
+            </Card>
           )}
 
           <SourceDescriptionTabs listings={perfume.perfume_listings ?? []} />
@@ -339,6 +444,23 @@ type ChangeRow = {
   price?: ChangeCell;
   stock?: ChangeCell;
 };
+
+function MetadataCell({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1 rounded-[var(--radius-sm)] border border-[color:var(--line)] p-3">
+      <span className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--text-soft)]">
+        {label}
+      </span>
+      <span className="text-sm text-[color:var(--text)]">{value}</span>
+    </div>
+  );
+}
 
 function ChangesTable({ rows }: { rows: ChangeRow[] }) {
   if (rows.length === 0) {
