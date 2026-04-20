@@ -8,6 +8,7 @@ import { FavoriteStar } from "@/components/brand/FavoriteStar";
 import { SaveControls } from "@/components/brand/SaveControls";
 import { RatingsControlGroup } from "@/components/brand/RatingControl";
 import { TagTypeahead } from "@/components/brand/TagTypeahead";
+import { SourceDescriptionTabs } from "@/components/brand/SourceDescriptionTabs";
 import {
   getPerfumeByManufacturerAndSlug,
   getPriceHistory,
@@ -242,19 +243,7 @@ export default async function PerfumeDetailPage({
             </section>
           )}
 
-          {perfume.perfume_listings?.map((listing) => (
-            <div key={listing.id} className="flex flex-col gap-3">
-              <span className="micro-label">
-                {listing.retailer?.name ?? "Source"}
-              </span>
-              {listing.source_description && (
-                <div
-                  className="prose prose-sm max-w-none text-[color:var(--text-soft)] leading-relaxed [&_p]:my-2 [&_li]:my-1"
-                  dangerouslySetInnerHTML={{ __html: listing.source_description }}
-                />
-              )}
-            </div>
-          ))}
+          <SourceDescriptionTabs listings={perfume.perfume_listings ?? []} />
         </div>
 
         <aside className="flex flex-col gap-8">
