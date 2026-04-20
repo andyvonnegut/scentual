@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { PageShell } from "@/components/brand/PageShell";
 import { SectionHeader } from "@/components/brand/SectionHeader";
 import { Card } from "@/components/brand/Card";
@@ -9,6 +10,12 @@ import { SavedCard } from "./_components/SavedCard";
 
 const VALID_FILTERS: LibraryFilter[] = ["all", "owned", "desired", "sniffed"];
 
+const LEGACY_FILTER_REDIRECTS: Record<string, string> = {
+  collection: "/collection?filter=owned",
+  wanted: "/collection?filter=desired",
+  both: "/collection",
+};
+
 export default async function CollectionPage({
   searchParams,
 }: {
@@ -16,6 +23,9 @@ export default async function CollectionPage({
 }) {
   await requireUser("/collection");
   const params = await searchParams;
+  if (params.filter && params.filter in LEGACY_FILTER_REDIRECTS) {
+    redirect(LEGACY_FILTER_REDIRECTS[params.filter]);
+  }
   const active: LibraryFilter = VALID_FILTERS.includes(
     params.filter as LibraryFilter,
   )
