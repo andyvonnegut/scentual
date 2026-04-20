@@ -18,6 +18,7 @@ import {
   getAllThemeTags,
   getPersonalPerfumeByPerfumeId,
 } from "@/lib/queries/library";
+import { getSessionUser } from "@/lib/auth";
 import {
   addPersonalNoteByName,
   addThemeTagByName,
@@ -65,6 +66,7 @@ export default async function PerfumeDetailPage({
   if (!perfume) notFound();
   const returnPath = `/perfumes/${manufacturer}/${slug}`;
 
+  const user = await getSessionUser();
   const [personal, allNotes, allThemeTags] = await Promise.all([
     getPersonalPerfumeByPerfumeId(perfume.id),
     getAllNotes(),
@@ -169,48 +171,63 @@ export default async function PerfumeDetailPage({
               <h1 className="font-display text-5xl md:text-6xl leading-[0.98] tracking-tight">
                 {perfume.name}
               </h1>
-              <FavoriteStar
-                perfumeId={perfume.id}
-                initialFavorite={perfume.personal_perfumes?.favorite ?? false}
-              />
+              {user && (
+                <FavoriteStar
+                  perfumeId={perfume.id}
+                  initialFavorite={personal?.favorite ?? false}
+                />
+              )}
             </div>
-            <SaveControls
-              perfumeId={perfume.id}
-              initialInCollection={perfume.personal_perfumes?.in_collection ?? false}
-              initialInWanted={perfume.personal_perfumes?.in_wanted ?? false}
-            />
-            <RatingsControlGroup
-              perfumeId={perfume.id}
-              initialRatings={{
-                projection: perfume.personal_perfumes?.projection_rating ?? null,
-                overall: perfume.personal_perfumes?.overall_rating ?? null,
-                design: perfume.personal_perfumes?.design_rating ?? null,
-              }}
-            />
+            {user ? (
+              <>
+                <SaveControls
+                  perfumeId={perfume.id}
+                  initialInCollection={personal?.in_collection ?? false}
+                  initialInWanted={personal?.in_wanted ?? false}
+                />
+                <RatingsControlGroup
+                  perfumeId={perfume.id}
+                  initialRatings={{
+                    projection: personal?.projection_rating ?? null,
+                    overall: personal?.overall_rating ?? null,
+                    design: personal?.design_rating ?? null,
+                  }}
+                />
+              </>
+            ) : (
+              <Link
+                href={`/auth/signin?next=${encodeURIComponent(returnPath)}`}
+                className="inline-flex w-fit items-center gap-2 rounded-[var(--radius-pill)] border border-[color:var(--line)] bg-[color:var(--bg-elevated)] px-4 py-1.5 text-sm font-medium hover:border-[color:var(--accent)] hover:text-[color:var(--accent-strong)]"
+              >
+                Sign in to save, rate, and journal
+              </Link>
+            )}
           </div>
 
-          <div className="flex flex-col gap-6 border-t border-[color:var(--line)] pt-6">
-            <TagTypeahead
-              label="Your notes"
-              placeholder="Type a note…"
-              listId={`personal-notes-${perfume.id}`}
-              variant="fragrance-note"
-              attached={attachedPersonalNotes}
-              suggestions={availablePersonalNotes}
-              onAdd={addPersonalNoteByName.bind(null, perfume.id)}
-              onRemove={detachPersonalNote.bind(null, perfume.id)}
-            />
-            <TagTypeahead
-              label="Themes"
-              placeholder="Type a theme…"
-              listId={`theme-tags-${perfume.id}`}
-              variant="theme"
-              attached={attachedThemeTags}
-              suggestions={allThemeTags}
-              onAdd={addThemeTagByName.bind(null, perfume.id)}
-              onRemove={detachThemeTag.bind(null, perfume.id)}
-            />
-          </div>
+          {user && (
+            <div className="flex flex-col gap-6 border-t border-[color:var(--line)] pt-6">
+              <TagTypeahead
+                label="Your notes"
+                placeholder="Type a note…"
+                listId={`personal-notes-${perfume.id}`}
+                variant="fragrance-note"
+                attached={attachedPersonalNotes}
+                suggestions={availablePersonalNotes}
+                onAdd={addPersonalNoteByName.bind(null, perfume.id)}
+                onRemove={detachPersonalNote.bind(null, perfume.id)}
+              />
+              <TagTypeahead
+                label="Themes"
+                placeholder="Type a theme…"
+                listId={`theme-tags-${perfume.id}`}
+                variant="theme"
+                attached={attachedThemeTags}
+                suggestions={allThemeTags}
+                onAdd={addThemeTagByName.bind(null, perfume.id)}
+                onRemove={detachThemeTag.bind(null, perfume.id)}
+              />
+            </div>
+          )}
 
           {storeNotes.length > 0 && (
             <section className="flex flex-col gap-3">
@@ -309,7 +326,9 @@ export default async function PerfumeDetailPage({
             </div>
           </Card>
 
-          <JournalSection perfumeId={perfume.id} returnPath={returnPath} />
+          {user && (
+            <JournalSection perfumeId={perfume.id} returnPath={returnPath} />
+          )}
         </aside>
       </div>
 

@@ -5,6 +5,7 @@ import {
   getAllManufacturers,
   getAllNotes,
 } from "@/lib/queries/perfumes";
+import { getSessionUser } from "@/lib/auth";
 import { BrowseClient } from "./_components/BrowseClient";
 
 type SearchParams = Promise<{
@@ -25,13 +26,17 @@ export default async function BrowsePage({
     typeof params.note_q === "string" ? [params.note_q] : params.note_q,
   );
 
+  const user = await getSessionUser();
   const [initialResponse, manufacturers, noteOptions] = await Promise.all([
-      browsePerfumes({
-        q: params.q,
-        manufacturerSlug: params.manufacturer,
-        notes: selectedNotes,
-        limit: 120,
-      }),
+      browsePerfumes(
+        {
+          q: params.q,
+          manufacturerSlug: params.manufacturer,
+          notes: selectedNotes,
+          limit: 120,
+        },
+        user?.id ?? null,
+      ),
       getAllManufacturers(),
       getAllNotes(),
     ]);

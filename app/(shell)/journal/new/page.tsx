@@ -3,9 +3,11 @@ import { PageShell } from "@/components/brand/PageShell";
 import { SectionHeader } from "@/components/brand/SectionHeader";
 import { Card } from "@/components/brand/Card";
 import { createJournalEntry } from "@/app/actions/journal";
+import { requireUser } from "@/lib/auth";
 import { PerfumePicker } from "./_components/PerfumePicker";
 
-export default function NewJournalEntryPage() {
+export default async function NewJournalEntryPage() {
+  await requireUser("/journal/new");
   const today = new Date().toISOString().slice(0, 10);
 
   return (

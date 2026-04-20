@@ -4,12 +4,14 @@ import { SectionHeader } from "@/components/brand/SectionHeader";
 import { Card } from "@/components/brand/Card";
 import { JournalEntryCard } from "@/components/brand/JournalEntryCard";
 import { listJournalEntries } from "@/lib/queries/journal";
+import { requireUser } from "@/lib/auth";
 
 export default async function JournalPage({
   searchParams,
 }: {
   searchParams: Promise<{ perfume?: string }>;
 }) {
+  await requireUser("/journal");
   const params = await searchParams;
   const perfumeId = params.perfume ? Number(params.perfume) : undefined;
   const entries = await listJournalEntries(perfumeId);

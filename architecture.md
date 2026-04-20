@@ -4,7 +4,7 @@
 
 ## What it is
 
-Scentual is a single-user private perfume library + journal. It maintains a canonical perfume database ingested from retailer sites (Ministry of Scent, LuckyScent) via daily scrapers, records price & stock history transactionally, and lets the user organize saved perfumes in Collection / Wanted states with personal tags and perfume-linked journal entries. There is no auth — reads are public (Supabase RLS), writes happen server-side via the service role.
+Scentual is a multi-user private perfume library + journal. It maintains a canonical perfume database ingested from retailer sites (Ministry of Scent, LuckyScent) via daily scrapers, records price & stock history transactionally, and lets each user organize their own saved perfumes in Collection / Wanted states with personal tags and perfume-linked journal entries. Auth is Google-only via native Supabase Auth. Catalog browsing (home, browse, manufacturer + perfume detail) is public; personal data (collection, ratings, journal, tags, profile) is gated and scoped to the signed-in user via RLS on `user_id = auth.uid()`. Scraper and cron writes still bypass RLS via the service-role client.
 
 Stack: Next.js 16 App Router (React 19), Supabase (Postgres + SSR client), Tailwind 4, Vercel (Fluid Compute + Cron), TypeScript.
 
@@ -31,7 +31,9 @@ vercel.json               # Cron schedule
 
 ## Routes (what each page shows)
 
-All main pages live in the `(shell)` route group, which provides a sticky header (Scentual wordmark + Home / Browse / Collection / Journal) and a footer. The top-right nav renders as plain text links; the active section is indicated by a bolder weight and the `accent-strong` color. Perfume detail pages map to **Browse**, and `/journal/new` maps to **Journal**.
+All main pages live in the `(shell)` route group, which provides a sticky header (Scentual wordmark + Home / Browse / Collection / Journal + `HeaderAuth`) and a footer. The top-right nav renders as plain text links; the active section is indicated by a bolder weight and the `accent-strong` color. Perfume detail pages map to **Browse**, and `/journal/new` maps to **Journal**. `HeaderAuth` (`components/brand/HeaderAuth.tsx`) shows a "Sign in" link when anonymous and the user's display_name + avatar (linking to `/profile`) plus a "Sign out" POST form when signed in.
+
+Auth routes live outside the shell: `/auth/signin`, `/auth/callback`, `/auth/signout`. Personal routes (`/collection`, `/journal`, `/journal/new`, `/profile`) call `requireUser(nextPath)` from `lib/auth.ts` at the top of the server component and redirect anonymous visitors to `/auth/signin?next=...`.
 
 ### `/` — Home (`app/(shell)/page.tsx`)
 Two rails: **Recently added** and **Recently updated** (6 perfumes each). Empty-state hints at running the Ministry of Scent ingest. Data: `getRecentPerfumes`, `getRecentlyUpdatedPerfumes` run in parallel.
@@ -58,7 +60,9 @@ Two-column layout (1.1fr / 1fr on `md`+):
   - **Journal** — "+ New journal entry" button that toggles an inline form (client component `NewJournalEntry`), followed by a **Past entries** list. Each past entry renders as its own bordered card with a left accent border to distinguish it from the new-entry affordance.
 - **Below the two columns:** **Recent price & stock changes** — a single consolidated full-width Card with one time-sorted table (newest 20 rows) merging both price and stock changes across all variants. Per-SKU price and stock events within a 5s window are merged into one row; each row has four columns — date, retailer chip (`variant="store"`) + size, price (with change_type suffix unless `initial`), and stock status (em-dash when that side didn't change).
 
-Data: `getPerfumeByManufacturerAndSlug` returns the full tree (manufacturer, perfume_notes, perfume_listings → retailer + variants, journal_entries, personal_perfumes). Then `getPriceHistory(variantId)` / `getStockHistory(variantId)` are fanned out in parallel for every variant.
+Data: `getPerfumeByManufacturerAndSlug` returns the public perfume tree (manufacturer, perfume_notes, perfume_listings → retailer + variants). User-scoped pieces (`personal_perfumes`, `journal_entries`) are fetched separately via `getPersonalPerfumeByPerfumeId` and `listJournalEntriesForPerfume`, both of which filter by `user_id = auth.uid()` and return `null`/`[]` for anonymous visitors. Then `getPriceHistory(variantId)` / `getStockHistory(variantId)` are fanned out in parallel for every variant.
+
+When a user is not signed in, the page renders the catalog data plus a "Sign in to save, rate, and journal" CTA in place of the favorite star, `SaveControls`, `RatingsControlGroup`, `TagTypeahead`, and `JournalSection`.
 
 ### `/collection` — Collection
 Saved-perfumes page renamed from Library to Collection. Header shows only **Collection** with the perfume count, with no micro-label above it. Filter pills: **All Saved** (default) / **Collection** / **Wanted** / **Both** via `?filter=`. Top card is `AddPerfumeSearch` (typeahead into `/api/catalog/search`, two buttons per hit to add to Collection or Wanted). Grid of `SavedCard`s (perfume, house, favorite star beside the perfume name, Collection/Wanted chips, size_owned, personal note, store notes, personal-note chips, theme tags, compact three-row `RatingsControlGroup` with inline right-side labels only, compact `SaveControls`). Data: `getSavedPerfumes(filter)`.
@@ -69,11 +73,23 @@ Reverse-chronological by `entry_date`, then `created_at`. Header shows only **Cu
 ### `/journal/new` — New entry
 Form: `PerfumePicker` (single async-search combobox → `/api/catalog/search`, matches on perfume or house name, emits hidden `perfume_id` after selection), `entry_date` (default today), optional title, required body. Submits to the `createJournalEntry` server action, then redirects to `redirect_to` (or `/journal`).
 
+### `/auth/signin` — Sign in (public)
+Single "Continue with Google" button wired to `supabase.auth.signInWithOAuth({ provider: "google" })` with a `redirectTo` of `/auth/callback?next=<returnPath>`. Already-signed-in visitors are redirected to `next` (or `/`).
+
+### `/auth/callback` — OAuth return (route handler)
+`GET` exchanges the `code` query param for a session via `supabase.auth.exchangeCodeForSession`, then redirects to `next` (default `/`). Errors bounce back to `/auth/signin?error=...`.
+
+### `/auth/signout` — Sign out (route handler)
+`POST` calls `supabase.auth.signOut()` and redirects to `/` with 303.
+
+### `/profile` — Profile (signed-in only)
+Small form that edits `display_name` via the `updateDisplayName` server action. Shows the Google email read-only. `requireUser("/profile")` gates the page.
+
 ---
 
 ## Server actions (`app/actions/*`)
 
-Every action calls `createServiceClient()` (service-role key, bypasses RLS) and ends with `revalidatePath("/", "layout")` so any server-rendered page picks up the change.
+Write actions against user-scoped tables (`personal_perfumes`, `personal_perfume_notes`, `personal_perfume_theme_tags`, `journal_entries`, `profiles`) use the server SSR client (`lib/supabase/server.ts`) plus `requireUser()` from `lib/auth.ts`. The action stamps `user_id` from the session; RLS enforces `user_id = auth.uid()` on insert/update/delete. Catalog writes (new canonical `notes` / `theme_tags` entries) still use the service-role client because the vocabulary is shared across all users. Every action ends with `revalidatePath("/", "layout")` so server-rendered pages pick up changes.
 
 ### `library.ts`
 - `toggleCollection(perfumeId, next)` — upserts `personal_perfumes`, flips `in_collection`, stamps `added_to_collection_at`. When both flags become false, deletes the row only if it carries no tags and no `size_owned_text` / `personal_note`; otherwise leaves a bare row so attached tags / notes survive.
@@ -83,9 +99,12 @@ Every action calls `createServiceClient()` (service-role key, bypasses RLS) and 
 - `setPersonalRating(perfumeId, scale, rating)` — upserts one of `personal_perfumes.projection_rating | overall_rating | design_rating` (`scale` is `"projection" | "overall" | "design"`; `rating` is a 1..5 integer or `null` to clear). Creates a bare row if none exists and `rating != null`; deletes the row when clearing the last remaining rating leaves no other personal data and both list flags are false.
 
 ### `tags.ts`
-- `upsertCanonicalNote(name)` / `createThemeTag(name)` — slugifies and upserts on `slug` (idempotent). Notes are written into the shared canonical `notes` table, not a user-only note vocabulary.
-- `addPersonalNoteByName(perfumeId, name)` / `addThemeTagByName(...)` — create-if-missing the canonical note or theme tag, ensure a `personal_perfumes` row exists for the perfume (inserts a bare row if not), then upsert the join row. Lets users attach a personal note without adding the perfume to Collection or Wanted.
-- `detachPersonalNote(perfumeId, noteId)` / `detachThemeTag(...)` — look up the personal row by perfume and delete the join row.
+- `upsertCanonicalNote(name)` / `createThemeTag(name)` — slugifies and upserts on `slug` (idempotent) via the service client. Requires a signed-in user. Notes are written into the shared canonical `notes` table, not a user-only note vocabulary.
+- `addPersonalNoteByName(perfumeId, name)` / `addThemeTagByName(...)` — create-if-missing the canonical note or theme tag, ensure a `personal_perfumes` row exists for `(user_id, perfume_id)` (inserts a bare row if not), then upsert the join row. Lets users attach a personal note without adding the perfume to Collection or Wanted.
+- `detachPersonalNote(perfumeId, noteId)` / `detachThemeTag(...)` — look up the personal row by `(user_id, perfume_id)` and delete the join row (also filtered by `user_id`).
+
+### `profile.ts`
+- `updateDisplayName(formData)` — trims the `display_name` input, updates `profiles` where `id = auth.uid()`, revalidates the layout so the header picks up the new label.
 
 ### `journal.ts`
 - `createJournalEntry(formData)` — reads `perfume_id`, optional `title`, required `body`, `entry_date`, optional `redirect_to`. Inserts, revalidates `/journal` plus the redirect target when provided, then redirects.
@@ -110,18 +129,26 @@ Manual trigger for dev; do not expose in prod without gating.
 Returns up to 25 `{ id, name, slug, manufacturer: { id, name, slug } }` whose perfume name OR manufacturer name matches `q` (case-insensitive substring). Consumed by `AddPerfumeSearch` (library) and `PerfumePicker` (journal).
 
 ### `GET /api/catalog/browse?q=...&manufacturer=...&note=...` — live browse filters
-Returns `{ total, results }` for the `/browse` live filter UI. `q` is whitespace-tokenized and each token must match somewhere across perfume name, manufacturer name, store-note attachments, or personal-note attachments, all through the canonical `notes` table. `manufacturer` is an exact manufacturer slug filter. Repeated `note` params are exact-match AND filters on canonical note slugs. Repeated `note_q` params are broad note-word AND filters using case-insensitive `note.name contains <text>` semantics across both store and personal note attachments. Legacy `store:<slug>` / `user:<slug>` URLs are still parsed and normalized as exact-note filters.
+Returns `{ total, results }` for the `/browse` live filter UI. `q` is whitespace-tokenized and each token must match somewhere across perfume name, manufacturer name, store-note attachments, and — when the request is authenticated — the caller's own personal-note attachments. `manufacturer` is an exact manufacturer slug filter. Repeated `note` params are exact-match AND filters on canonical note slugs. Repeated `note_q` params are broad note-word AND filters using case-insensitive `note.name contains <text>` semantics. For anonymous callers, personal-note branches are skipped so one user's personal notes cannot leak into another browser. Legacy `store:<slug>` / `user:<slug>` URLs are still parsed and normalized as exact-note filters.
+
+### `GET /auth/callback`, `POST /auth/signout`
+See the Routes section above.
 
 ---
 
 ## Data layer (`lib/`)
 
 ### Supabase clients
-- `lib/supabase/client.ts` — browser SSR client (anon key). Minimal current use.
-- `lib/supabase/server.ts` — server client with cookie handling, used by all `lib/queries/*`.
-- `lib/supabase/service.ts` — service-role client (no session, no cookies). Used only by server actions and the scraper.
+- `lib/supabase/client.ts` — browser SSR client (anon key). Used by the Google OAuth sign-in flow in `components/brand/SignInButton.tsx`.
+- `lib/supabase/server.ts` — server client with cookie handling. Used by all `lib/queries/*` and by user-scoped server actions.
+- `lib/supabase/service.ts` — service-role client (no session, no cookies). Used only by the scraper, cron handlers, and writes into shared catalog tables (canonical `notes`, `theme_tags`).
 - `lib/supabase/database.types.ts` — generated types from the Supabase schema.
 - `lib/supabase/utils.ts` — `cn()` (clsx + tailwind-merge).
+
+### Auth helpers (`lib/auth.ts`)
+- `getSessionUser()` — reads the session from cookies, fetches the matching `profiles` row, returns `{ id, email, avatarUrl, displayName }` or `null`. Avatars are not persisted; they are read from `user_metadata.avatar_url`/`picture` at request time.
+- `requireUser(nextPath?)` — same as `getSessionUser` but `redirect('/auth/signin?next=...')` when there is no session.
+- `middleware.ts` (repo root) refreshes the Supabase session cookie on every non-static request via `supabase.auth.getUser()`. The matcher excludes `_next/*`, common static file extensions, `favicon.ico`, and `/api/cron/*` (cron calls present `Authorization: Bearer $CRON_SECRET` and do not need a session).
 
 ### Queries (`lib/queries/`)
 Read-only, server-only. Grouped by domain:
@@ -131,9 +158,9 @@ Read-only, server-only. Grouped by domain:
 
 ### Data flow
 
-**Reads:** server component → `lib/queries/*` → server Supabase client (anon, RLS-gated, cookie-aware) → rendered HTML. `/browse` is mixed: the page does an initial server read from URL params, then the client filter shell updates `window.history.replaceState`, observes `searchParams` for back/forward restoration, and fetches incremental result updates from `GET /api/catalog/browse`.
+**Reads:** server component → `lib/queries/*` → server Supabase client (session-aware via cookies; RLS gates user-scoped tables to `user_id = auth.uid()`) → rendered HTML. User-scoped query helpers (`getSavedPerfumes`, `getPersonalPerfumeByPerfumeId`, `listJournalEntries*`) short-circuit to empty results when no session is present. `/browse` is mixed: the page does an initial server read from URL params (passing `user?.id`), then the client filter shell updates `window.history.replaceState`, observes `searchParams` for back/forward restoration, and fetches incremental result updates from `GET /api/catalog/browse`.
 
-**Writes:** client component → server action → service client (service role, RLS bypassed) → `revalidatePath("/", "layout")` → affected server pages re-render on next request. Client components use `useTransition` for optimistic UI.
+**Writes:** client component → server action → session server client → `revalidatePath("/", "layout")` → affected server pages re-render on next request. Actions call `requireUser()` and stamp `user_id` from the session; RLS blocks any attempt to write rows with a different `user_id`. Client components use `useTransition` for optimistic UI. Shared catalog inserts (new canonical notes / theme tags) still go through the service-role client.
 
 **Ingest:** Vercel Cron → `/api/cron/scrape/[source]` → `runScrape` → scraper `crawl()` async iterable → `ingestOne` per item (upserts + history rows + listing-level note sync) → `markStaleListingsInactive` → `rebuildCanonicalNotes` → write `scrape_runs` row.
 
@@ -209,19 +236,26 @@ Cron invocations require `CRON_SECRET` to be set in the Vercel Production enviro
 - **`perfume_source_notes`** — per-listing raw note capture, kept in exact sync with the current parsed note set for active listings. `UNIQUE(perfume_listing_id, raw_note_text)`.
 
 ### Personal library
-- **`personal_perfumes`** — `id, perfume_id UNIQUE→ CASCADE, in_collection, in_wanted, favorite default false, size_owned_text?, personal_note?, projection_rating? smallint CHECK (1..5), overall_rating? smallint CHECK (1..5), design_rating? smallint CHECK (1..5), added_to_collection_at?, added_to_wanted_at?, updated_at`. Partial indexes on each flag. Bare rows (both flags false) are allowed so favorite state, tags, notes, or ratings can exist without the perfume being in Collection or Wanted — the original `CHECK (in_collection OR in_wanted)` was dropped in `20260419020001_allow_bare_personal_perfumes.sql`.
-- **`personal_perfume_notes`** — join from a personal perfume row to canonical `notes`. `UNIQUE(personal_perfume_id, note_id)`.
+- **`personal_perfumes`** — `id, user_id uuid→auth.users CASCADE, perfume_id→ CASCADE, in_collection, in_wanted, favorite default false, size_owned_text?, personal_note?, projection_rating? smallint CHECK (1..5), overall_rating? smallint CHECK (1..5), design_rating? smallint CHECK (1..5), added_to_collection_at?, added_to_wanted_at?, updated_at`. `UNIQUE(user_id, perfume_id)` (the original `UNIQUE(perfume_id)` was swapped out in `20260419220002_user_id_personal.sql`). Partial indexes on each flag, plus `(user_id)` for RLS-filtered reads. Bare rows (both flags false) are allowed so favorite state, tags, notes, or ratings can exist without the perfume being in Collection or Wanted — the original `CHECK (in_collection OR in_wanted)` was dropped in `20260419020001_allow_bare_personal_perfumes.sql`.
+- **`personal_perfume_notes`** — `id, user_id uuid→auth.users CASCADE, personal_perfume_id→ CASCADE, note_id→ CASCADE`. `UNIQUE(personal_perfume_id, note_id)` (the parent FK already carries `user_id`). Indexed on `user_id`.
 - **`theme_tags`** (renamed from `generic_tags`) — `id, name, slug UNIQUE`. Theme / mood / occasion tags.
-- **`personal_perfume_theme_tags`** (renamed from `personal_perfume_generic_tags`) — join, `UNIQUE(personal_perfume_id, theme_tag_id)`.
+- **`personal_perfume_theme_tags`** (renamed from `personal_perfume_generic_tags`) — `id, user_id uuid→auth.users CASCADE, personal_perfume_id→ CASCADE, theme_tag_id→ CASCADE`. `UNIQUE(personal_perfume_id, theme_tag_id)`. Indexed on `user_id`.
+
+### Accounts
+- **`profiles`** — `id uuid PRIMARY KEY → auth.users(id) ON DELETE CASCADE, display_name?, created_at, updated_at`. Populated by the `on_auth_user_created` `AFTER INSERT` trigger on `auth.users`, which seeds `display_name` from `raw_user_meta_data->>'full_name'` (fallback to `name`, fallback to email local-part). `security definer` function so the trigger bypasses profile-table RLS.
 
 ### Journal
-- **`journal_entries`** — `id, perfume_id→ CASCADE, title?, body, entry_date DEFAULT current_date`. Indexes `(perfume_id, entry_date desc)`, `(entry_date desc)`.
+- **`journal_entries`** — `id, user_id uuid→auth.users CASCADE, perfume_id→ CASCADE, title?, body, entry_date DEFAULT current_date`. Indexes `(perfume_id, entry_date desc)`, `(entry_date desc)`, `(user_id)`.
 
 ### Ops
 - **`scrape_runs`** — `id, source_name, run_type ('initial'|'daily'), status ('running'|'succeeded'|'failed'), started_at, finished_at, records_seen, records_created, records_updated, error_summary?`. Index `(source_name, started_at desc)`.
 
 ### RLS / auth model
-Single-user, no login. Every table has RLS enabled and one policy: `SELECT` for `anon, authenticated`. No insert/update/delete policies exist — writes happen only through the service-role client. A shared `touch_updated_at()` trigger bumps `updated_at` on updates.
+Multi-user, Google-only auth via native Supabase Auth (no email/password, no other providers — configured in the Supabase dashboard). Every public table has RLS enabled. Catalog tables (`perfumes`, `manufacturers`, `retailers`, `perfume_listings`, `listing_variants`, price/stock history, notes, `source_notes`, `perfume_notes`, `perfume_source_notes`, `theme_tags`, `scrape_runs`) grant `SELECT` to `anon, authenticated`. Writes on those still happen only through the service-role client (scraper + cron).
+
+User-scoped tables (`personal_perfumes`, `personal_perfume_notes`, `personal_perfume_theme_tags`, `journal_entries`) also grant `SELECT` to `anon, authenticated` (inherited from the original single-user policy — RLS-filtered reads in queries scope to `user_id = auth.uid()` explicitly so nothing leaks), and add `INSERT/UPDATE/DELETE` policies for `authenticated` with `user_id = auth.uid()`. `profiles` is stricter: `SELECT` and `UPDATE` are `authenticated, id = auth.uid()` only. A shared `touch_updated_at()` trigger bumps `updated_at` on updates. The `on_auth_user_created` trigger auto-inserts a `profiles` row on sign-up.
+
+Open sign-up: any Google account can complete OAuth and get its own workspace. Existing single-user data (all `personal_perfumes` / join / journal rows from before `20260419220002_*`) was left with `user_id = null` and must be backfilled to the owner's uuid after first sign-in (see `20260419220002_user_id_personal.sql` header comment); a follow-up migration can then flip `user_id` to `NOT NULL`.
 
 ---
 
@@ -234,6 +268,8 @@ Small hand-rolled design system. No shadcn, no headless-ui.
 - **`SaveControls.tsx`** — *client.* Two toggle buttons (Collection / Wanted) with `useTransition`. `compact` variant for `SavedCard`.
 - **`FavoriteStar.tsx`** — *client.* Single-button favorite toggle with inline star SVG states (outline when off, accent-filled when on), optimistic update via `useTransition`, click-again-to-clear behavior, and inline title/error feedback. Used beside the perfume name on the detail page and saved cards.
 - **`RatingControl.tsx`** — *client.* Contains `RatingControl` (single personal rating row) and `RatingsControlGroup` (Overall / Projection / Design bundle). Each scale is a 1..5 click-to-clear widget with hover preview, optimistic update via `useTransition`, and rollback on error. Projection keeps the old-fashioned atomizer SVG, Overall uses a heart SVG, and Design uses a traditional eau de parfum bottle SVG. Each row renders icons first, then a small right-side label with a deliberate gap after the icons; the old `Not rated` / `x / 5` helper copy is hidden by default, but save errors still render inline on the right. Shared props include `perfumeId`, `size ("sm" | "md")`, and initial ratings; grouped usage passes `{ projection, overall, design }`.
+- **`SignInButton.tsx`** — *client.* "Continue with Google" button; calls `supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: "/auth/callback?next=<returnPath>" } })`. Inlines the Google glyph SVG.
+- **`HeaderAuth.tsx`** — *server.* Right-side header widget. Logged-out: "Sign in" pill link to `/auth/signin`. Logged-in: display_name + avatar link to `/profile` plus a small POST-to-`/auth/signout` form button.
 - **`TagTypeahead.tsx`** — *client.* Combobox input with a custom listbox dropdown of unattached tags (filtered by the typed query). Clicking a suggestion or explicitly navigating to one with the keyboard commits that suggestion; otherwise `Enter` first resolves a case-insensitive exact suggestion-name match, then falls back to the first filtered suggestion, and only uses the raw typed value when no suggestions match. Attached tags render as removable pills. Variant prop: `fragrance-note | theme`.
 - **`PageShell.tsx`** — max-width 1240px wrapper.
 - **`SectionHeader.tsx`** — optional micro-label + `font-display` heading + optional description/children.
@@ -279,7 +315,7 @@ Defined as CSS custom properties (globals) consumed by Tailwind utilities and CV
 - **`next.config.ts`** — defaults.
 - **`tsconfig.json`** — strict, ES2017 target, path alias `@/*` → repo root.
 - **`vercel.json`** — cron entries for both scrapers.
-- **Env** — `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`.
+- **Env** — `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`. Google OAuth is configured in the Supabase dashboard (Auth → Providers → Google); the Supabase redirect URL must be listed as an Authorized redirect URI in the Google Cloud OAuth client, and `https://scentual.vercel.app/auth/callback` + `http://localhost:3000/auth/callback` must be listed under Supabase Auth → URL Configuration.
 
 ---
 
@@ -292,4 +328,6 @@ Defined as CSS custom properties (globals) consumed by Tailwind utilities and CV
 - Store notes (scraper output) and personal note attachments both point at the shared canonical `notes` table, but they are stored in different join tables and still render in separate UI sections.
 - Canonical store-note attachments are an exact mirror of explicit note blocks on active product pages. If a scrape-derived note disappears from every active listing, the rebuild prunes it from `source_notes` and `perfume_notes`, but canonical `notes` rows may still remain when users have promoted or attached them personally.
 - All mutations revalidate at `("/", "layout")`. If you add a mutation, call it.
-- The service role key must never be imported into a client component. Only `lib/supabase/service.ts` reads it, and only server actions / API routes / the scraper import from there.
+- The service role key must never be imported into a client component. Only `lib/supabase/service.ts` reads it, and only the scraper / cron handlers / shared-catalog writes import from there.
+- User-scoped writes go through the **session** server client (`lib/supabase/server.ts`) + `requireUser()`. Never use the service client for personal data — that would bypass the `user_id = auth.uid()` RLS guard.
+- User-scoped reads must include `.eq("user_id", user.id)` explicitly. RLS is enforced on writes, but the anon/authenticated `SELECT` policy is `true`, so forgetting the filter would leak across users.

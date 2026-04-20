@@ -1,8 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/auth";
 
 export type LibraryFilter = "all" | "collection" | "wanted" | "both";
 
 export async function getSavedPerfumes(filter: LibraryFilter = "all") {
+  const user = await getSessionUser();
+  if (!user) return [];
+
   const db = await createClient();
   let query = db
     .from("personal_perfumes")
@@ -25,6 +29,7 @@ export async function getSavedPerfumes(filter: LibraryFilter = "all") {
       )
       `,
     )
+    .eq("user_id", user.id)
     .order("updated_at", { ascending: false });
 
   if (filter === "collection") query = query.eq("in_collection", true);
@@ -37,6 +42,9 @@ export async function getSavedPerfumes(filter: LibraryFilter = "all") {
 }
 
 export async function getPersonalPerfumeByPerfumeId(perfumeId: number) {
+  const user = await getSessionUser();
+  if (!user) return null;
+
   const db = await createClient();
   const { data } = await db
     .from("personal_perfumes")
@@ -51,6 +59,7 @@ export async function getPersonalPerfumeByPerfumeId(perfumeId: number) {
       )
       `,
     )
+    .eq("user_id", user.id)
     .eq("perfume_id", perfumeId)
     .maybeSingle();
   return data;

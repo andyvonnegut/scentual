@@ -1,16 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { requireUser } from "@/lib/auth";
 import { slugify } from "@/lib/scrape/normalize";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-// Create-or-return helpers. Both return the row so callers can chain an
-// attach immediately. Slug collision → return existing (idempotent create).
+// notes + theme_tags are shared catalog tables (cross-user). Adding a new
+// name inserts into a canonical table that all users see; we use the service
+// client for those writes since anyone can propose a new label.
 
 export async function upsertCanonicalNote(name: string) {
   const trimmed = name.trim();
   if (!trimmed) return null;
+  await requireUser();
   const db = createServiceClient();
   const slug = slugify(trimmed);
   const { data } = await db
@@ -25,6 +29,7 @@ export async function upsertCanonicalNote(name: string) {
 export async function createThemeTag(name: string) {
   const trimmed = name.trim();
   if (!trimmed) return null;
+  await requireUser();
   const db = createServiceClient();
   const slug = slugify(trimmed);
   const { data } = await db
@@ -36,22 +41,24 @@ export async function createThemeTag(name: string) {
   return data;
 }
 
-// Returns the personal_perfumes row id for this perfume, creating a bare row
-// (neither in_collection nor in_wanted) if one doesn't exist. Lets us hang
-// notes or tags on a perfume the user hasn't explicitly saved.
+// Returns the user's personal_perfumes row id for this perfume, creating a
+// bare row (neither in_collection nor in_wanted) if one doesn't exist. Lets
+// us hang notes or tags on a perfume the user hasn't explicitly saved.
 async function ensurePersonalPerfumeId(
   db: SupabaseClient,
+  userId: string,
   perfumeId: number,
 ): Promise<number | null> {
   const { data: existing } = await db
     .from("personal_perfumes")
     .select("id")
+    .eq("user_id", userId)
     .eq("perfume_id", perfumeId)
     .maybeSingle();
   if (existing?.id) return existing.id as number;
   const { data: inserted } = await db
     .from("personal_perfumes")
-    .insert({ perfume_id: perfumeId })
+    .insert({ user_id: userId, perfume_id: perfumeId })
     .select("id")
     .single();
   return (inserted?.id as number) ?? null;
@@ -59,18 +66,17 @@ async function ensurePersonalPerfumeId(
 
 async function getPersonalPerfumeId(
   db: SupabaseClient,
+  userId: string,
   perfumeId: number,
 ): Promise<number | null> {
   const { data } = await db
     .from("personal_perfumes")
     .select("id")
+    .eq("user_id", userId)
     .eq("perfume_id", perfumeId)
     .maybeSingle();
   return (data?.id as number) ?? null;
 }
-
-// One-shot actions keyed by perfumeId. If the personal_perfumes row doesn't
-// exist yet, a bare row is created so the note has somewhere to hang.
 
 export async function addPersonalNoteByName(
   perfumeId: number,
@@ -78,13 +84,15 @@ export async function addPersonalNoteByName(
 ) {
   const note = await upsertCanonicalNote(name);
   if (!note) return;
-  const db = createServiceClient();
-  const personalId = await ensurePersonalPerfumeId(db, perfumeId);
+  const user = await requireUser();
+  const db = await createClient();
+  const personalId = await ensurePersonalPerfumeId(db, user.id, perfumeId);
   if (!personalId) return;
   await db
     .from("personal_perfume_notes")
     .upsert(
       {
+        user_id: user.id,
         personal_perfume_id: personalId,
         note_id: note.id,
       },
@@ -99,13 +107,15 @@ export async function addPersonalNoteByName(
 export async function addThemeTagByName(perfumeId: number, name: string) {
   const tag = await createThemeTag(name);
   if (!tag) return;
-  const db = createServiceClient();
-  const personalId = await ensurePersonalPerfumeId(db, perfumeId);
+  const user = await requireUser();
+  const db = await createClient();
+  const personalId = await ensurePersonalPerfumeId(db, user.id, perfumeId);
   if (!personalId) return;
   await db
     .from("personal_perfume_theme_tags")
     .upsert(
       {
+        user_id: user.id,
         personal_perfume_id: personalId,
         theme_tag_id: tag.id,
       },
@@ -121,24 +131,28 @@ export async function detachPersonalNote(
   perfumeId: number,
   noteId: number,
 ) {
-  const db = createServiceClient();
-  const personalId = await getPersonalPerfumeId(db, perfumeId);
+  const user = await requireUser();
+  const db = await createClient();
+  const personalId = await getPersonalPerfumeId(db, user.id, perfumeId);
   if (!personalId) return;
   await db
     .from("personal_perfume_notes")
     .delete()
+    .eq("user_id", user.id)
     .eq("personal_perfume_id", personalId)
     .eq("note_id", noteId);
   revalidatePath("/", "layout");
 }
 
 export async function detachThemeTag(perfumeId: number, tagId: number) {
-  const db = createServiceClient();
-  const personalId = await getPersonalPerfumeId(db, perfumeId);
+  const user = await requireUser();
+  const db = await createClient();
+  const personalId = await getPersonalPerfumeId(db, user.id, perfumeId);
   if (!personalId) return;
   await db
     .from("personal_perfume_theme_tags")
     .delete()
+    .eq("user_id", user.id)
     .eq("personal_perfume_id", personalId)
     .eq("theme_tag_id", tagId);
   revalidatePath("/", "layout");

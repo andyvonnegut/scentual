@@ -435,6 +435,7 @@ export type Database = {
       personal_perfumes: {
         Row: {
           id: number;
+          user_id: string | null;
           perfume_id: number;
           in_collection: boolean;
           in_wanted: boolean;
@@ -450,6 +451,7 @@ export type Database = {
         };
         Insert: {
           id?: number;
+          user_id?: string | null;
           perfume_id: number;
           in_collection?: boolean;
           in_wanted?: boolean;
@@ -465,6 +467,7 @@ export type Database = {
         };
         Update: {
           id?: number;
+          user_id?: string | null;
           perfume_id?: number;
           in_collection?: boolean;
           in_wanted?: boolean;
@@ -482,7 +485,7 @@ export type Database = {
           {
             foreignKeyName: "personal_perfumes_perfume_id_fkey";
             columns: ["perfume_id"];
-            isOneToOne: true;
+            isOneToOne: false;
             referencedRelation: "perfumes";
             referencedColumns: ["id"];
           },
@@ -491,18 +494,21 @@ export type Database = {
       personal_perfume_notes: {
         Row: {
           id: number;
+          user_id: string | null;
           personal_perfume_id: number;
           note_id: number;
           created_at: string;
         };
         Insert: {
           id?: number;
+          user_id?: string | null;
           personal_perfume_id: number;
           note_id: number;
           created_at?: string;
         };
         Update: {
           id?: number;
+          user_id?: string | null;
           personal_perfume_id?: number;
           note_id?: number;
           created_at?: string;
@@ -551,16 +557,19 @@ export type Database = {
       personal_perfume_theme_tags: {
         Row: {
           id: number;
+          user_id: string | null;
           personal_perfume_id: number;
           theme_tag_id: number;
         };
         Insert: {
           id?: number;
+          user_id?: string | null;
           personal_perfume_id: number;
           theme_tag_id: number;
         };
         Update: {
           id?: number;
+          user_id?: string | null;
           personal_perfume_id?: number;
           theme_tag_id?: number;
         };
@@ -584,6 +593,7 @@ export type Database = {
       journal_entries: {
         Row: {
           id: number;
+          user_id: string | null;
           perfume_id: number;
           title: string | null;
           body: string;
@@ -593,6 +603,7 @@ export type Database = {
         };
         Insert: {
           id?: number;
+          user_id?: string | null;
           perfume_id: number;
           title?: string | null;
           body: string;
@@ -602,6 +613,7 @@ export type Database = {
         };
         Update: {
           id?: number;
+          user_id?: string | null;
           perfume_id?: number;
           title?: string | null;
           body?: string;
@@ -655,6 +667,27 @@ export type Database = {
           records_created?: number;
           records_updated?: number;
           error_summary?: string | null;
+        };
+        Relationships: [];
+      };
+      profiles: {
+        Row: {
+          id: string;
+          display_name: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          display_name?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          display_name?: string | null;
+          created_at?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };

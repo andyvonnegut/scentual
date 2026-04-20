@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { ShellNav } from "@/components/brand/ShellNav";
+import { HeaderAuth } from "@/components/brand/HeaderAuth";
+import { getSessionUser } from "@/lib/auth";
 
-export default function ShellLayout({
+export default async function ShellLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const user = await getSessionUser();
   return (
     <div className="flex min-h-full flex-col">
       <header className="sticky top-0 z-10 border-b border-[color:var(--line)] bg-[color:var(--bg)]/85 backdrop-blur">
@@ -16,7 +19,10 @@ export default function ShellLayout({
           >
             Scentual
           </Link>
-          <ShellNav />
+          <div className="flex items-center gap-6">
+            <ShellNav />
+            <HeaderAuth user={user} />
+          </div>
         </div>
       </header>
       <main className="flex-1">{children}</main>

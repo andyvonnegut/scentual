@@ -1,15 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createServiceClient } from "@/lib/supabase/service";
+import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 
-async function upsertPersonal(perfumeId: number) {
-  const db = createServiceClient();
+async function loadPersonalRow(userId: string, perfumeId: number) {
+  const db = await createClient();
   const { data: existing } = await db
     .from("personal_perfumes")
     .select("*")
+    .eq("user_id", userId)
     .eq("perfume_id", perfumeId)
     .maybeSingle();
   return { db, existing };
@@ -47,6 +49,7 @@ function hasFavorite(existing: PersonalDataFields) {
 // un-toggling the last list would silently cascade-delete their tags.
 async function hasPersonalData(
   db: SupabaseClient,
+  userId: string,
   personalId: number,
   existing: PersonalDataFields,
 ): Promise<boolean> {
@@ -57,10 +60,12 @@ async function hasPersonalData(
     db
       .from("personal_perfume_notes")
       .select("personal_perfume_id", { count: "exact", head: true })
+      .eq("user_id", userId)
       .eq("personal_perfume_id", personalId),
     db
       .from("personal_perfume_theme_tags")
       .select("personal_perfume_id", { count: "exact", head: true })
+      .eq("user_id", userId)
       .eq("personal_perfume_id", personalId),
   ]);
   return (noteCount.count ?? 0) > 0 || (themeCount.count ?? 0) > 0;
@@ -79,12 +84,14 @@ function getRatingPatch(
 }
 
 export async function toggleCollection(perfumeId: number, next: boolean) {
-  const { db, existing } = await upsertPersonal(perfumeId);
+  const user = await requireUser();
+  const { db, existing } = await loadPersonalRow(user.id, perfumeId);
   const nowIso = new Date().toISOString();
 
   if (!existing) {
-    if (!next) return; // nothing to do
+    if (!next) return;
     await db.from("personal_perfumes").insert({
+      user_id: user.id,
       perfume_id: perfumeId,
       in_collection: true,
       in_wanted: false,
@@ -95,7 +102,7 @@ export async function toggleCollection(perfumeId: number, next: boolean) {
     const shouldPreserve =
       !next &&
       !keepWanted &&
-      (await hasPersonalData(db, existing.id, existing));
+      (await hasPersonalData(db, user.id, existing.id, existing));
     if (!next && !keepWanted && !shouldPreserve) {
       await db.from("personal_perfumes").delete().eq("id", existing.id);
     } else {
@@ -116,12 +123,14 @@ export async function toggleCollection(perfumeId: number, next: boolean) {
 }
 
 export async function toggleWanted(perfumeId: number, next: boolean) {
-  const { db, existing } = await upsertPersonal(perfumeId);
+  const user = await requireUser();
+  const { db, existing } = await loadPersonalRow(user.id, perfumeId);
   const nowIso = new Date().toISOString();
 
   if (!existing) {
     if (!next) return;
     await db.from("personal_perfumes").insert({
+      user_id: user.id,
       perfume_id: perfumeId,
       in_collection: false,
       in_wanted: true,
@@ -132,7 +141,7 @@ export async function toggleWanted(perfumeId: number, next: boolean) {
     const shouldPreserve =
       !next &&
       !keepCollection &&
-      (await hasPersonalData(db, existing.id, existing));
+      (await hasPersonalData(db, user.id, existing.id, existing));
     if (!next && !keepCollection && !shouldPreserve) {
       await db.from("personal_perfumes").delete().eq("id", existing.id);
     } else {
@@ -154,17 +163,24 @@ export async function updatePersonalMeta(
   perfumeId: number,
   patch: { size_owned_text?: string | null; personal_note?: string | null },
 ) {
-  const db = createServiceClient();
-  await db.from("personal_perfumes").update(patch).eq("perfume_id", perfumeId);
+  const user = await requireUser();
+  const db = await createClient();
+  await db
+    .from("personal_perfumes")
+    .update(patch)
+    .eq("user_id", user.id)
+    .eq("perfume_id", perfumeId);
   revalidatePath("/", "layout");
 }
 
 export async function toggleFavorite(perfumeId: number, next: boolean) {
-  const { db, existing } = await upsertPersonal(perfumeId);
+  const user = await requireUser();
+  const { db, existing } = await loadPersonalRow(user.id, perfumeId);
 
   if (!existing) {
     if (!next) return;
     await db.from("personal_perfumes").insert({
+      user_id: user.id,
       perfume_id: perfumeId,
       in_collection: false,
       in_wanted: false,
@@ -179,7 +195,7 @@ export async function toggleFavorite(perfumeId: number, next: boolean) {
       !next &&
       !existing.in_collection &&
       !existing.in_wanted &&
-      !(await hasPersonalData(db, existing.id, nextExisting));
+      !(await hasPersonalData(db, user.id, existing.id, nextExisting));
 
     if (shouldDelete) {
       await db.from("personal_perfumes").delete().eq("id", existing.id);
@@ -203,12 +219,14 @@ export async function setPersonalRating(
     throw new Error("Rating must be an integer between 1 and 5, or null");
   }
 
-  const { db, existing } = await upsertPersonal(perfumeId);
+  const user = await requireUser();
+  const { db, existing } = await loadPersonalRow(user.id, perfumeId);
   const ratingPatch = getRatingPatch(scale, rating);
 
   if (!existing) {
     if (rating === null) return;
     await db.from("personal_perfumes").insert({
+      user_id: user.id,
       perfume_id: perfumeId,
       in_collection: false,
       in_wanted: false,
@@ -223,7 +241,7 @@ export async function setPersonalRating(
       rating === null &&
       !existing.in_collection &&
       !existing.in_wanted &&
-      !(await hasPersonalData(db, existing.id, nextExisting));
+      !(await hasPersonalData(db, user.id, existing.id, nextExisting));
 
     if (shouldDelete) {
       await db.from("personal_perfumes").delete().eq("id", existing.id);

@@ -1,6 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/auth";
 
 export async function listJournalEntries(perfumeId?: number) {
+  const user = await getSessionUser();
+  if (!user) return [];
+
   const db = await createClient();
   let query = db
     .from("journal_entries")
@@ -13,6 +17,7 @@ export async function listJournalEntries(perfumeId?: number) {
       )
       `,
     )
+    .eq("user_id", user.id)
     .order("entry_date", { ascending: false })
     .order("created_at", { ascending: false });
 
@@ -22,13 +27,16 @@ export async function listJournalEntries(perfumeId?: number) {
 }
 
 export async function listJournalEntriesForPerfume(perfumeId: number) {
+  const user = await getSessionUser();
+  if (!user) return [];
+
   const db = await createClient();
   const { data } = await db
     .from("journal_entries")
     .select("id, title, body, entry_date, created_at")
+    .eq("user_id", user.id)
     .eq("perfume_id", perfumeId)
     .order("entry_date", { ascending: false })
     .order("created_at", { ascending: false });
   return data ?? [];
 }
-

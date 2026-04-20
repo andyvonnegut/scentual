@@ -4,6 +4,7 @@ import { SectionHeader } from "@/components/brand/SectionHeader";
 import { Card } from "@/components/brand/Card";
 import { cn } from "@/lib/utils";
 import { getSavedPerfumes, type LibraryFilter } from "@/lib/queries/library";
+import { requireUser } from "@/lib/auth";
 import { AddPerfumeSearch } from "./_components/AddPerfumeSearch";
 import { SavedCard } from "./_components/SavedCard";
 
@@ -19,6 +20,7 @@ export default async function CollectionPage({
 }: {
   searchParams: Promise<{ filter?: LibraryFilter }>;
 }) {
+  await requireUser("/collection");
   const params = await searchParams;
   const active: LibraryFilter = FILTERS.some((f) => f.value === params.filter)
     ? (params.filter as LibraryFilter)

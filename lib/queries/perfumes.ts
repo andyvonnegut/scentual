@@ -102,7 +102,7 @@ async function getPerfumeIdsForStoreNoteSlug(slug: string) {
   return rowsToIdSet(data as PerfumeNoteRow[] | null | undefined);
 }
 
-async function getPerfumeIdsForPersonalNoteSlug(slug: string) {
+async function getPerfumeIdsForPersonalNoteSlug(userId: string, slug: string) {
   const db = await createClient();
   const { data } = await db
     .from("personal_perfume_notes")
@@ -112,15 +112,19 @@ async function getPerfumeIdsForPersonalNoteSlug(slug: string) {
       note:notes!inner(slug)
       `,
     )
+    .eq("user_id", userId)
     .eq("note.slug", slug);
 
   return personalRowsToIdSet(data as PersonalNoteRow[] | null | undefined);
 }
 
-async function getPerfumeIdsForNoteSlug(slug: string) {
+async function getPerfumeIdsForNoteSlug(slug: string, userId: string | null) {
+  if (!userId) {
+    return await getPerfumeIdsForStoreNoteSlug(slug);
+  }
   const [storeIds, personalIds] = await Promise.all([
     getPerfumeIdsForStoreNoteSlug(slug),
-    getPerfumeIdsForPersonalNoteSlug(slug),
+    getPerfumeIdsForPersonalNoteSlug(userId, slug),
   ]);
 
   return new Set([...storeIds, ...personalIds]);
@@ -137,7 +141,7 @@ async function getPerfumeIdsForStoreNoteQuery(query: string) {
   return rowsToIdSet(data as PerfumeNoteRow[] | null | undefined);
 }
 
-async function getPerfumeIdsForPersonalNoteQuery(query: string) {
+async function getPerfumeIdsForPersonalNoteQuery(userId: string, query: string) {
   const db = await createClient();
   const pattern = `%${query}%`;
   const { data } = await db
@@ -148,23 +152,40 @@ async function getPerfumeIdsForPersonalNoteQuery(query: string) {
       note:notes!inner(name)
       `,
     )
+    .eq("user_id", userId)
     .ilike("note.name", pattern);
 
   return personalRowsToIdSet(data as PersonalNoteRow[] | null | undefined);
 }
 
-async function getPerfumeIdsForNoteQuery(query: string) {
+async function getPerfumeIdsForNoteQuery(query: string, userId: string | null) {
+  if (!userId) {
+    return await getPerfumeIdsForStoreNoteQuery(query);
+  }
   const [storeIds, personalIds] = await Promise.all([
     getPerfumeIdsForStoreNoteQuery(query),
-    getPerfumeIdsForPersonalNoteQuery(query),
+    getPerfumeIdsForPersonalNoteQuery(userId, query),
   ]);
 
   return new Set([...storeIds, ...personalIds]);
 }
 
-async function getPerfumeIdsForToken(token: string) {
+async function getPerfumeIdsForToken(token: string, userId: string | null) {
   const db = await createClient();
   const pattern = `%${token}%`;
+  const personalBranch = userId
+    ? db
+        .from("personal_perfume_notes")
+        .select(
+          `
+          personal_perfume:personal_perfumes!inner(perfume_id),
+          note:notes!inner(name)
+          `,
+        )
+        .eq("user_id", userId)
+        .ilike("note.name", pattern)
+    : null;
+
   const [byName, byHouse, byStoreNote, byPersonalNote] = await Promise.all([
     db.from("perfumes").select("id").ilike("name", pattern),
     db
@@ -175,15 +196,7 @@ async function getPerfumeIdsForToken(token: string) {
       .from("perfume_notes")
       .select("perfume_id, note:notes!inner(name)")
       .ilike("note.name", pattern),
-    db
-      .from("personal_perfume_notes")
-      .select(
-        `
-        personal_perfume:personal_perfumes!inner(perfume_id),
-        note:notes!inner(name)
-        `,
-      )
-      .ilike("note.name", pattern),
+    personalBranch ?? Promise.resolve({ data: null }),
   ]);
 
   const ids = new Set<number>();
@@ -222,6 +235,7 @@ async function fetchBrowseRowsByIds(ids: number[], limit: number) {
 
 export async function browsePerfumes(
   filters: BrowseFilters,
+  userId: string | null = null,
 ): Promise<BrowseSearchResponse> {
   const limit = filters.limit ?? 60;
   const tokens = getBrowseTokens(filters.q);
@@ -268,13 +282,13 @@ export async function browsePerfumes(
   for (const note of notes) {
     constraintPromises.push(
       isBrowseExactNoteFilter(note)
-        ? getPerfumeIdsForNoteSlug(note.slug)
-        : getPerfumeIdsForNoteQuery(note.query),
+        ? getPerfumeIdsForNoteSlug(note.slug, userId)
+        : getPerfumeIdsForNoteQuery(note.query, userId),
     );
   }
 
   for (const token of tokens) {
-    constraintPromises.push(getPerfumeIdsForToken(token));
+    constraintPromises.push(getPerfumeIdsForToken(token, userId));
   }
 
   const idSets = await Promise.all(constraintPromises);
@@ -372,6 +386,8 @@ export async function getPerfumeByManufacturerAndSlug(
     .maybeSingle();
   if (!manufacturer) return null;
 
+  // Personal data (personal_perfumes, journal_entries) is loaded separately
+  // via user-scoped queries so it cannot leak across users.
   const { data: perfume } = await db
     .from("perfumes")
     .select(
@@ -389,13 +405,6 @@ export async function getPerfumeByManufacturerAndSlug(
           current_stock_status, current_stock_raw,
           last_seen_at
         )
-      ),
-      journal_entries(id, title, body, entry_date, created_at),
-      personal_perfumes(
-        id, in_collection, in_wanted, favorite,
-        size_owned_text, personal_note,
-        projection_rating, overall_rating, design_rating,
-        added_to_collection_at, added_to_wanted_at
       )
       `,
     )
