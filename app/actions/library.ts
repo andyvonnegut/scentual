@@ -20,6 +20,7 @@ export type PersonalRatingScale = "projection" | "overall" | "design";
 type PersonalDataFields = {
   size_owned_text?: string | null;
   personal_note?: string | null;
+  favorite?: boolean | null;
   projection_rating?: number | null;
   overall_rating?: number | null;
   design_rating?: number | null;
@@ -37,6 +38,10 @@ function hasAnyRating(existing: PersonalDataFields) {
   );
 }
 
+function hasFavorite(existing: PersonalDataFields) {
+  return existing?.favorite === true;
+}
+
 // A personal_perfumes row is worth keeping around (even with both flags off)
 // if the user has attached tags or written notes on it. Without this check,
 // un-toggling the last list would silently cascade-delete their tags.
@@ -46,6 +51,7 @@ async function hasPersonalData(
   existing: PersonalDataFields,
 ): Promise<boolean> {
   if (existing?.size_owned_text || existing?.personal_note) return true;
+  if (hasFavorite(existing)) return true;
   if (hasAnyRating(existing)) return true;
   const [noteCount, themeCount] = await Promise.all([
     db
@@ -150,6 +156,41 @@ export async function updatePersonalMeta(
 ) {
   const db = createServiceClient();
   await db.from("personal_perfumes").update(patch).eq("perfume_id", perfumeId);
+  revalidatePath("/", "layout");
+}
+
+export async function toggleFavorite(perfumeId: number, next: boolean) {
+  const { db, existing } = await upsertPersonal(perfumeId);
+
+  if (!existing) {
+    if (!next) return;
+    await db.from("personal_perfumes").insert({
+      perfume_id: perfumeId,
+      in_collection: false,
+      in_wanted: false,
+      favorite: true,
+    });
+  } else {
+    const nextExisting: PersonalPerfumeUpdate = {
+      ...existing,
+      favorite: next,
+    };
+    const shouldDelete =
+      !next &&
+      !existing.in_collection &&
+      !existing.in_wanted &&
+      !(await hasPersonalData(db, existing.id, nextExisting));
+
+    if (shouldDelete) {
+      await db.from("personal_perfumes").delete().eq("id", existing.id);
+    } else {
+      await db
+        .from("personal_perfumes")
+        .update({ favorite: next })
+        .eq("id", existing.id);
+    }
+  }
+
   revalidatePath("/", "layout");
 }
 

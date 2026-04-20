@@ -8,7 +8,7 @@ export async function getSavedPerfumes(filter: LibraryFilter = "all") {
     .from("personal_perfumes")
     .select(
       `
-      id, in_collection, in_wanted,
+      id, in_collection, in_wanted, favorite,
       size_owned_text, personal_note,
       projection_rating, overall_rating, design_rating,
       added_to_collection_at, added_to_wanted_at, updated_at,

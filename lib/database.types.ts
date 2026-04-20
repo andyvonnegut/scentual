@@ -440,6 +440,7 @@ export type Database = {
           in_wanted: boolean;
           size_owned_text: string | null;
           personal_note: string | null;
+          favorite: boolean;
           projection_rating: number | null;
           overall_rating: number | null;
           design_rating: number | null;
@@ -454,6 +455,7 @@ export type Database = {
           in_wanted?: boolean;
           size_owned_text?: string | null;
           personal_note?: string | null;
+          favorite?: boolean;
           projection_rating?: number | null;
           overall_rating?: number | null;
           design_rating?: number | null;
@@ -468,6 +470,7 @@ export type Database = {
           in_wanted?: boolean;
           size_owned_text?: string | null;
           personal_note?: string | null;
+          favorite?: boolean;
           projection_rating?: number | null;
           overall_rating?: number | null;
           design_rating?: number | null;

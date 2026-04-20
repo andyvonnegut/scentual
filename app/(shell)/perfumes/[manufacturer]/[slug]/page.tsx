@@ -4,6 +4,7 @@ import { PageShell } from "@/components/brand/PageShell";
 import { SectionHeader } from "@/components/brand/SectionHeader";
 import { Card } from "@/components/brand/Card";
 import { Chip } from "@/components/brand/Chip";
+import { FavoriteStar } from "@/components/brand/FavoriteStar";
 import { SaveControls } from "@/components/brand/SaveControls";
 import { RatingsControlGroup } from "@/components/brand/RatingControl";
 import { TagTypeahead } from "@/components/brand/TagTypeahead";
@@ -164,9 +165,15 @@ export default async function PerfumeDetailPage({
             >
               {perfume.manufacturer?.name ?? "—"}
             </Link>
-            <h1 className="font-display text-5xl md:text-6xl leading-[0.98] tracking-tight">
-              {perfume.name}
-            </h1>
+            <div className="flex items-start gap-3">
+              <h1 className="font-display text-5xl md:text-6xl leading-[0.98] tracking-tight">
+                {perfume.name}
+              </h1>
+              <FavoriteStar
+                perfumeId={perfume.id}
+                initialFavorite={perfume.personal_perfumes?.favorite ?? false}
+              />
+            </div>
             <SaveControls
               perfumeId={perfume.id}
               initialInCollection={perfume.personal_perfumes?.in_collection ?? false}

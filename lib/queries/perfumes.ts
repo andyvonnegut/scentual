@@ -392,7 +392,7 @@ export async function getPerfumeByManufacturerAndSlug(
       ),
       journal_entries(id, title, body, entry_date, created_at),
       personal_perfumes(
-        id, in_collection, in_wanted,
+        id, in_collection, in_wanted, favorite,
         size_owned_text, personal_note,
         projection_rating, overall_rating, design_rating,
         added_to_collection_at, added_to_wanted_at

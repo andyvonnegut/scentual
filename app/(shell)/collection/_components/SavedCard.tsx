@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card } from "@/components/brand/Card";
 import { Chip } from "@/components/brand/Chip";
+import { FavoriteStar } from "@/components/brand/FavoriteStar";
 import { SaveControls } from "@/components/brand/SaveControls";
 import { RatingsControlGroup } from "@/components/brand/RatingControl";
 
@@ -12,6 +13,7 @@ type Saved = {
   in_wanted: boolean;
   size_owned_text: string | null;
   personal_note: string | null;
+  favorite: boolean;
   projection_rating: number | null;
   overall_rating: number | null;
   design_rating: number | null;
@@ -53,9 +55,11 @@ export function SavedCard({ saved }: { saved: Saved }) {
   return (
     <Card>
       <div className="flex flex-col gap-4">
-        <Link href={href} className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2">
           <div className="flex items-baseline justify-between gap-3">
-            <span className="micro-label">{perfume.manufacturer?.name}</span>
+            <Link href={href} className="micro-label">
+              {perfume.manufacturer?.name}
+            </Link>
             <div className="flex gap-1">
               {saved.in_collection && (
                 <Chip variant="fragrance-note" size="sm">
@@ -69,10 +73,19 @@ export function SavedCard({ saved }: { saved: Saved }) {
               )}
             </div>
           </div>
-          <h3 className="font-display text-2xl leading-tight">
-            {perfume.name}
-          </h3>
-        </Link>
+          <div className="flex items-start justify-between gap-3">
+            <Link href={href} className="min-w-0">
+              <h3 className="font-display text-2xl leading-tight">
+                {perfume.name}
+              </h3>
+            </Link>
+            <FavoriteStar
+              perfumeId={perfume.id}
+              initialFavorite={saved.favorite}
+              size="sm"
+            />
+          </div>
+        </div>
 
         {saved.size_owned_text && (
           <p className="text-xs text-[color:var(--text-soft)]">
