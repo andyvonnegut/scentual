@@ -7,6 +7,12 @@ import { requireUser } from "@/lib/auth";
 import { slugify } from "@/lib/scrape/normalize";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+type TagRef = {
+  id: number;
+  name: string;
+  slug?: string;
+};
+
 // notes + theme_tags are shared catalog tables (cross-user). Adding a new
 // name inserts into a canonical table that all users see; we use the service
 // client for those writes since anyone can propose a new label.
@@ -81,13 +87,13 @@ async function getPersonalPerfumeId(
 export async function addPersonalNoteByName(
   perfumeId: number,
   name: string,
-) {
+): Promise<TagRef | null> {
   const note = await upsertCanonicalNote(name);
-  if (!note) return;
+  if (!note) return null;
   const user = await requireUser();
   const db = await createClient();
   const personalId = await ensurePersonalPerfumeId(db, user.id, perfumeId);
-  if (!personalId) return;
+  if (!personalId) return null;
   await db
     .from("personal_perfume_notes")
     .upsert(
@@ -102,15 +108,19 @@ export async function addPersonalNoteByName(
       },
     );
   revalidatePath("/", "layout");
+  return note;
 }
 
-export async function addThemeTagByName(perfumeId: number, name: string) {
+export async function addThemeTagByName(
+  perfumeId: number,
+  name: string,
+): Promise<TagRef | null> {
   const tag = await createThemeTag(name);
-  if (!tag) return;
+  if (!tag) return null;
   const user = await requireUser();
   const db = await createClient();
   const personalId = await ensurePersonalPerfumeId(db, user.id, perfumeId);
-  if (!personalId) return;
+  if (!personalId) return null;
   await db
     .from("personal_perfume_theme_tags")
     .upsert(
@@ -125,6 +135,7 @@ export async function addThemeTagByName(perfumeId: number, name: string) {
       },
     );
   revalidatePath("/", "layout");
+  return tag;
 }
 
 export async function detachPersonalNote(

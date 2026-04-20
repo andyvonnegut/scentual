@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 type Ref = { id: number; name: string; slug?: string };
@@ -21,18 +22,27 @@ export function TagTypeahead({
   variant: "fragrance-note" | "theme";
   attached: Ref[];
   suggestions: Ref[];
-  onAdd: (name: string) => Promise<void>;
+  onAdd: (name: string) => Promise<Ref | null>;
   onRemove: (tagId: number) => Promise<void>;
 }) {
+  const router = useRouter();
   const [value, setValue] = useState("");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [hasExplicitSelection, setHasExplicitSelection] = useState(false);
+  const [attachedTags, setAttachedTags] = useState(attached);
+  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
-  const attachedNames = new Set(attached.map((a) => a.name.toLowerCase()));
+  useEffect(() => {
+    setAttachedTags(attached);
+  }, [attached]);
+
+  const attachedNames = new Set(
+    attachedTags.map((tag) => tag.name.toLowerCase()),
+  );
   const available = suggestions.filter(
     (s) => !attachedNames.has(s.name.toLowerCase()),
   );
@@ -63,12 +73,27 @@ export function TagTypeahead({
   const submit = (name?: string) => {
     const v = (name ?? value).trim();
     if (!v) return;
-    startTransition(() => onAdd(v));
-    setValue("");
-    setOpen(false);
-    setActiveIndex(0);
-    setHasExplicitSelection(false);
-    inputRef.current?.focus();
+    setError(null);
+    startTransition(async () => {
+      try {
+        const added = await onAdd(v);
+        if (added) {
+          setAttachedTags((current) =>
+            current.some((tag) => tag.id === added.id)
+              ? current
+              : [...current, added],
+          );
+        }
+        setValue("");
+        setOpen(false);
+        setActiveIndex(0);
+        setHasExplicitSelection(false);
+        inputRef.current?.focus();
+        router.refresh();
+      } catch {
+        setError("Couldn't save tag");
+      }
+    });
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -114,12 +139,27 @@ export function TagTypeahead({
       <span className="micro-label">{label}</span>
 
       <div className="flex flex-wrap items-center gap-1.5">
-        {attached.map((t) => (
+        {attachedTags.map((t) => (
           <button
             key={t.id}
             type="button"
             disabled={isPending}
-            onClick={() => startTransition(() => onRemove(t.id))}
+            onClick={() => {
+              const previousTags = attachedTags;
+              setError(null);
+              setAttachedTags((current) =>
+                current.filter((tag) => tag.id !== t.id),
+              );
+              startTransition(async () => {
+                try {
+                  await onRemove(t.id);
+                  router.refresh();
+                } catch {
+                  setAttachedTags(previousTags);
+                  setError("Couldn't remove tag");
+                }
+              });
+            }}
             className={cn(
               "group inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs transition-all disabled:opacity-60",
               pillStyles,
@@ -186,6 +226,9 @@ export function TagTypeahead({
           )}
         </div>
       </div>
+      {error && (
+        <p className="text-xs text-[color:var(--accent-strong)]">{error}</p>
+      )}
     </div>
   );
 }
