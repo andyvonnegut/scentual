@@ -392,13 +392,7 @@ export async function getPerfumeByManufacturerAndSlug(
     .from("perfumes")
     .select(
       `
-      id, name, slug, canonical_description,
-      release_year, gender,
-      notes_top, notes_middle, notes_base,
-      fragrantica_rating, fragrantica_votes,
-      fragrantica_longevity, fragrantica_sillage,
-      fragrantica_url, fragrantica_last_synced_at,
-      created_at, updated_at,
+      id, name, slug, canonical_description, created_at, updated_at,
       manufacturer:manufacturers(id, name, slug),
       perfume_notes(note:notes(id, name, slug)),
       perfume_listings(
