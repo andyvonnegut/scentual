@@ -5,7 +5,7 @@ import { SectionHeader } from "@/components/brand/SectionHeader";
 import { Card } from "@/components/brand/Card";
 import { Chip } from "@/components/brand/Chip";
 import { SaveControls } from "@/components/brand/SaveControls";
-import { RatingControl } from "@/components/brand/RatingControl";
+import { RatingsControlGroup } from "@/components/brand/RatingControl";
 import { TagTypeahead } from "@/components/brand/TagTypeahead";
 import {
   getPerfumeByManufacturerAndSlug,
@@ -172,9 +172,13 @@ export default async function PerfumeDetailPage({
               initialInCollection={perfume.personal_perfumes?.in_collection ?? false}
               initialInWanted={perfume.personal_perfumes?.in_wanted ?? false}
             />
-            <RatingControl
+            <RatingsControlGroup
               perfumeId={perfume.id}
-              initialRating={perfume.personal_perfumes?.rating ?? null}
+              initialRatings={{
+                projection: perfume.personal_perfumes?.projection_rating ?? null,
+                overall: perfume.personal_perfumes?.overall_rating ?? null,
+                design: perfume.personal_perfumes?.design_rating ?? null,
+              }}
             />
           </div>
 

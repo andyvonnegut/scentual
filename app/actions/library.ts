@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/database.types";
 
 async function upsertPersonal(perfumeId: number) {
   const db = createServiceClient();
@@ -14,20 +15,38 @@ async function upsertPersonal(perfumeId: number) {
   return { db, existing };
 }
 
+export type PersonalRatingScale = "projection" | "overall" | "design";
+
+type PersonalDataFields = {
+  size_owned_text?: string | null;
+  personal_note?: string | null;
+  projection_rating?: number | null;
+  overall_rating?: number | null;
+  design_rating?: number | null;
+} | null;
+
+type PersonalPerfumeInsert = Database["public"]["Tables"]["personal_perfumes"]["Insert"];
+type PersonalPerfumeUpdate = Database["public"]["Tables"]["personal_perfumes"]["Update"];
+
+function hasAnyRating(existing: PersonalDataFields) {
+  if (!existing) return false;
+  return (
+    existing.projection_rating != null ||
+    existing.overall_rating != null ||
+    existing.design_rating != null
+  );
+}
+
 // A personal_perfumes row is worth keeping around (even with both flags off)
 // if the user has attached tags or written notes on it. Without this check,
 // un-toggling the last list would silently cascade-delete their tags.
 async function hasPersonalData(
   db: SupabaseClient,
   personalId: number,
-  existing: {
-    size_owned_text?: string | null;
-    personal_note?: string | null;
-    rating?: number | null;
-  } | null,
+  existing: PersonalDataFields,
 ): Promise<boolean> {
   if (existing?.size_owned_text || existing?.personal_note) return true;
-  if (existing?.rating != null) return true;
+  if (hasAnyRating(existing)) return true;
   const [noteCount, themeCount] = await Promise.all([
     db
       .from("personal_perfume_notes")
@@ -39,6 +58,18 @@ async function hasPersonalData(
       .eq("personal_perfume_id", personalId),
   ]);
   return (noteCount.count ?? 0) > 0 || (themeCount.count ?? 0) > 0;
+}
+
+function getRatingPatch(
+  scale: PersonalRatingScale,
+  rating: number | null,
+): Pick<
+  PersonalPerfumeInsert,
+  "projection_rating" | "overall_rating" | "design_rating"
+> {
+  if (scale === "projection") return { projection_rating: rating };
+  if (scale === "overall") return { overall_rating: rating };
+  return { design_rating: rating };
 }
 
 export async function toggleCollection(perfumeId: number, next: boolean) {
@@ -122,12 +153,17 @@ export async function updatePersonalMeta(
   revalidatePath("/", "layout");
 }
 
-export async function setRating(perfumeId: number, rating: number | null) {
+export async function setPersonalRating(
+  perfumeId: number,
+  scale: PersonalRatingScale,
+  rating: number | null,
+) {
   if (rating !== null && (rating < 1 || rating > 5 || !Number.isInteger(rating))) {
     throw new Error("Rating must be an integer between 1 and 5, or null");
   }
 
   const { db, existing } = await upsertPersonal(perfumeId);
+  const ratingPatch = getRatingPatch(scale, rating);
 
   if (!existing) {
     if (rating === null) return;
@@ -135,21 +171,25 @@ export async function setRating(perfumeId: number, rating: number | null) {
       perfume_id: perfumeId,
       in_collection: false,
       in_wanted: false,
-      rating,
+      ...ratingPatch,
     });
   } else {
+    const nextExisting: PersonalPerfumeUpdate = {
+      ...existing,
+      ...ratingPatch,
+    };
     const shouldDelete =
       rating === null &&
       !existing.in_collection &&
       !existing.in_wanted &&
-      !(await hasPersonalData(db, existing.id, { ...existing, rating: null }));
+      !(await hasPersonalData(db, existing.id, nextExisting));
 
     if (shouldDelete) {
       await db.from("personal_perfumes").delete().eq("id", existing.id);
     } else {
       await db
         .from("personal_perfumes")
-        .update({ rating })
+        .update(ratingPatch)
         .eq("id", existing.id);
     }
   }
