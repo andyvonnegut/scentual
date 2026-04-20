@@ -255,7 +255,7 @@ Multi-user, Google-only auth via native Supabase Auth (no email/password, no oth
 
 User-scoped tables (`personal_perfumes`, `personal_perfume_notes`, `personal_perfume_theme_tags`, `journal_entries`) also grant `SELECT` to `anon, authenticated` (inherited from the original single-user policy — RLS-filtered reads in queries scope to `user_id = auth.uid()` explicitly so nothing leaks), and add `INSERT/UPDATE/DELETE` policies for `authenticated` with `user_id = auth.uid()`. `profiles` is stricter: `SELECT` and `UPDATE` are `authenticated, id = auth.uid()` only. A shared `touch_updated_at()` trigger bumps `updated_at` on updates. The `on_auth_user_created` trigger auto-inserts a `profiles` row on sign-up.
 
-Open sign-up: any Google account can complete OAuth and get its own workspace. Existing single-user data (all `personal_perfumes` / join / journal rows from before `20260419220002_*`) was left with `user_id = null` and must be backfilled to the owner's uuid after first sign-in (see `20260419220002_user_id_personal.sql` header comment); a follow-up migration can then flip `user_id` to `NOT NULL`.
+Open sign-up: any Google account can complete OAuth and get its own workspace. Existing single-user data (all `personal_perfumes` / join / journal rows from before `20260419220002_*`) may start with `user_id = null`; the reconciliation migration backfills those rows to the owner's uuid on older installs, after which a follow-up migration can flip `user_id` to `NOT NULL`.
 
 ---
 
