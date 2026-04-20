@@ -87,16 +87,11 @@ export function RatingControl({
   const labelId = useId();
   const active = hover ?? rating ?? 0;
   const iconSize = size === "sm" ? 16 : 22;
-  const rowGap = size === "sm" ? "gap-2.5" : "gap-3";
+  const rowGap = size === "sm" ? "gap-2" : "gap-2.5";
   const buttonGap = size === "sm" ? "gap-0.5" : "gap-1";
   const metaText = size === "sm" ? "text-[11px]" : "text-xs";
-  const valueGap = size === "sm" ? "gap-2" : "gap-2.5";
-  const labelText =
-    size === "sm"
-      ? "text-[11px] uppercase tracking-[0.12em]"
-      : "text-xs uppercase tracking-[0.14em]";
-  const labelWidth = size === "sm" ? "w-[4.75rem]" : "w-[5.5rem]";
   const config = SCALE_CONFIG[scale];
+  const statusText = error ? error : rating != null ? `${rating} / 5` : "Not rated";
 
   const handleClick = (value: number) => {
     const prev = rating;
@@ -115,64 +110,58 @@ export function RatingControl({
 
   return (
     <div className={cn("flex items-center justify-start", rowGap)}>
-      <div className={cn("flex min-w-0 items-center justify-start", rowGap)}>
-        {showLabel && (
-          <span
-            id={labelId}
-            className={cn("micro-label shrink-0 text-left", labelText, labelWidth)}
-          >
-            {config.label}
-          </span>
-        )}
-        <div className={cn("flex items-center", valueGap)}>
-          <div
-            role="radiogroup"
-            aria-label={showLabel ? undefined : `${config.label} rating`}
-            aria-labelledby={showLabel ? labelId : undefined}
-            className={cn("flex items-center", buttonGap)}
-            onMouseLeave={() => setHover(null)}
-          >
-            {Array.from({ length: ICON_COUNT }, (_, i) => i + 1).map((value) => {
-              const isFilled = value <= active;
-              const isSelected = rating === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={isSelected}
-                  aria-label={`${config.label} ${value} out of 5`}
-                  disabled={isPending}
-                  onMouseEnter={() => setHover(value)}
-                  onFocus={() => setHover(value)}
-                  onBlur={() => setHover(null)}
-                  onClick={() => handleClick(value)}
-                  className={cn(
-                    "relative grid place-items-center rounded-full transition-all duration-[160ms] disabled:opacity-60",
-                    "p-1 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--bg)]",
-                  )}
-                >
-                  <RatingGlyph
-                    filled={isFilled}
-                    icon={config.icon}
-                    size={iconSize}
-                  />
-                </button>
-              );
-            })}
-          </div>
-          {showValue && (
-            <span
+      <div
+        role="radiogroup"
+        aria-label={showLabel ? undefined : `${config.label} rating`}
+        aria-labelledby={showLabel ? labelId : undefined}
+        className={cn("flex items-center", buttonGap)}
+        onMouseLeave={() => setHover(null)}
+      >
+        {Array.from({ length: ICON_COUNT }, (_, i) => i + 1).map((value) => {
+          const isFilled = value <= active;
+          const isSelected = rating === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={isSelected}
+              aria-label={`${config.label} ${value} out of 5`}
+              disabled={isPending}
+              onMouseEnter={() => setHover(value)}
+              onFocus={() => setHover(value)}
+              onBlur={() => setHover(null)}
+              onClick={() => handleClick(value)}
               className={cn(
-                "shrink-0 tabular-nums text-[color:var(--text-soft)]",
-                metaText,
+                "relative grid place-items-center rounded-full transition-all duration-[160ms] disabled:opacity-60",
+                "p-1 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--bg)]",
               )}
             >
-              {error ? error : rating != null ? `${rating} / 5` : "Not rated"}
+              <RatingGlyph
+                filled={isFilled}
+                icon={config.icon}
+                size={iconSize}
+              />
+            </button>
+          );
+        })}
+      </div>
+      {(showLabel || showValue) && (
+        <span
+          id={showLabel ? labelId : undefined}
+          className={cn(
+            "shrink-0 text-[color:var(--text-soft)]",
+            metaText,
+          )}
+        >
+          {showLabel && (
+            <span className="mr-2 uppercase tracking-[0.12em]">
+              {config.label}
             </span>
           )}
-        </div>
-      </div>
+          {showValue && <span className="tabular-nums">{statusText}</span>}
+        </span>
+      )}
     </div>
   );
 }

@@ -118,7 +118,6 @@ export function SavedCard({ saved }: { saved: Saved }) {
             design: saved.design_rating,
           }}
           size="sm"
-          showValues={false}
         />
 
         <SaveControls
