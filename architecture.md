@@ -179,8 +179,10 @@ Read-only, server-only. Grouped by domain:
 - **`scripts/purge-set-perfumes.ts`** — one-off cleanup for perfume rows ingested before the `isSetOrKit` guard existed. Applies the same detector (plus a slug-level safety net for `*-discovery-kit`, `*-gift-set`, `*-piece-*`, and manufacturers like `luckyscent-gifts-with-purchase`) to every `perfumes` row and deletes matches. Dry-run by default; pass `--apply` to actually delete. Deletion cascades through listings, variants, price/stock history, and note tables via FK `on delete cascade`.
 
 ### Cron schedule (`vercel.json`)
-- `ministryofscent` — `30 21 * * *` (21:30 UTC / 5:30 PM EDT while DST is in effect)
-- `luckyscent` — `45 21 * * *` (21:45 UTC / 5:45 PM EDT while DST is in effect)
+- `ministryofscent` — `10 0 * * *` (00:10 UTC / 8:10 PM EDT while DST is in effect)
+- `luckyscent` — `25 0 * * *` (00:25 UTC / 8:25 PM EDT while DST is in effect)
+
+Cron invocations require `CRON_SECRET` to be set in the Vercel Production environment; the handler rejects any request without `Authorization: Bearer $CRON_SECRET`.
 
 ---
 

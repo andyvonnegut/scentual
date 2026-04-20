@@ -2,11 +2,11 @@
   "crons": [
     {
       "path": "/api/cron/scrape/ministryofscent",
-      "schedule": "30 21 * * *"
+      "schedule": "10 0 * * *"
     },
     {
       "path": "/api/cron/scrape/luckyscent",
-      "schedule": "45 21 * * *"
+      "schedule": "25 0 * * *"
     }
   ]
 }
