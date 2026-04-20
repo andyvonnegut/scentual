@@ -337,9 +337,10 @@ async function ensurePersonalPerfume(db, userId, perfumeId, favorite, apply) {
     const insertRow = {
       user_id: userId,
       perfume_id: perfumeId,
-      in_collection: true,
-      in_wanted: false,
-      added_to_collection_at: nowIso,
+      in_owned: true,
+      in_desired: false,
+      in_sniffed: false,
+      added_to_owned_at: nowIso,
       favorite: favorite === true,
     };
     if (!apply) return { action: "would-insert", row: insertRow };
@@ -349,9 +350,9 @@ async function ensurePersonalPerfume(db, userId, perfumeId, favorite, apply) {
   }
 
   const patch = {};
-  if (!existing.in_collection) {
-    patch.in_collection = true;
-    patch.added_to_collection_at = existing.added_to_collection_at ?? nowIso;
+  if (!existing.in_owned) {
+    patch.in_owned = true;
+    patch.added_to_owned_at = existing.added_to_owned_at ?? nowIso;
   }
   if (favorite && !existing.favorite) patch.favorite = true;
 

@@ -183,8 +183,9 @@ export default async function PerfumeDetailPage({
               <>
                 <SaveControls
                   perfumeId={perfume.id}
-                  initialInCollection={personal?.in_collection ?? false}
-                  initialInWanted={personal?.in_wanted ?? false}
+                  initialInOwned={personal?.in_owned ?? false}
+                  initialInDesired={personal?.in_desired ?? false}
+                  initialInSniffed={personal?.in_sniffed ?? false}
                 />
                 <RatingsControlGroup
                   perfumeId={perfume.id}

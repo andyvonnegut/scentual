@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { toggleCollection, toggleWanted } from "@/app/actions/library";
+import { toggleOwned, toggleDesired, toggleSniffed } from "@/app/actions/library";
 
 type Result = {
   id: number;
@@ -69,20 +69,29 @@ export function AddPerfumeSearch() {
                 <button
                   type="button"
                   onClick={() =>
-                    startTransition(() => toggleCollection(r.id, true))
+                    startTransition(() => toggleOwned(r.id, true))
                   }
                   className="rounded-[var(--radius-pill)] bg-[color:var(--accent)] px-3 py-1 text-xs font-medium text-white hover:bg-[color:var(--accent-strong)]"
                 >
-                  + Collection
+                  + Owned
                 </button>
                 <button
                   type="button"
                   onClick={() =>
-                    startTransition(() => toggleWanted(r.id, true))
+                    startTransition(() => toggleDesired(r.id, true))
                   }
                   className="rounded-[var(--radius-pill)] border border-[color:var(--line)] px-3 py-1 text-xs font-medium hover:border-[color:var(--accent)] hover:text-[color:var(--accent-strong)]"
                 >
-                  + Wanted
+                  + Desired
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    startTransition(() => toggleSniffed(r.id, true))
+                  }
+                  className="rounded-[var(--radius-pill)] border border-[color:var(--line)] px-3 py-1 text-xs font-medium hover:border-[color:var(--accent)] hover:text-[color:var(--accent-strong)]"
+                >
+                  + Sniffed
                 </button>
               </div>
             </li>

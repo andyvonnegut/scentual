@@ -2,45 +2,61 @@
 
 import { useState, useTransition } from "react";
 import { cn } from "@/lib/utils";
-import { toggleCollection, toggleWanted } from "@/app/actions/library";
+import { toggleOwned, toggleDesired, toggleSniffed } from "@/app/actions/library";
 
 export function SaveControls({
   perfumeId,
-  initialInCollection,
-  initialInWanted,
+  initialInOwned,
+  initialInDesired,
+  initialInSniffed,
   compact = false,
 }: {
   perfumeId: number;
-  initialInCollection: boolean;
-  initialInWanted: boolean;
+  initialInOwned: boolean;
+  initialInDesired: boolean;
+  initialInSniffed: boolean;
   compact?: boolean;
 }) {
-  const [inCollection, setInCollection] = useState(initialInCollection);
-  const [inWanted, setInWanted] = useState(initialInWanted);
+  const [inOwned, setInOwned] = useState(initialInOwned);
+  const [inDesired, setInDesired] = useState(initialInDesired);
+  const [inSniffed, setInSniffed] = useState(initialInSniffed);
   const [isPending, startTransition] = useTransition();
 
-  const handleCollection = () => {
-    const prev = inCollection;
+  const handleOwned = () => {
+    const prev = inOwned;
     const next = !prev;
-    setInCollection(next);
+    setInOwned(next);
     startTransition(async () => {
       try {
-        await toggleCollection(perfumeId, next);
+        await toggleOwned(perfumeId, next);
       } catch {
-        setInCollection(prev);
+        setInOwned(prev);
       }
     });
   };
 
-  const handleWanted = () => {
-    const prev = inWanted;
+  const handleDesired = () => {
+    const prev = inDesired;
     const next = !prev;
-    setInWanted(next);
+    setInDesired(next);
     startTransition(async () => {
       try {
-        await toggleWanted(perfumeId, next);
+        await toggleDesired(perfumeId, next);
       } catch {
-        setInWanted(prev);
+        setInDesired(prev);
+      }
+    });
+  };
+
+  const handleSniffed = () => {
+    const prev = inSniffed;
+    const next = !prev;
+    setInSniffed(next);
+    startTransition(async () => {
+      try {
+        await toggleSniffed(perfumeId, next);
+      } catch {
+        setInSniffed(prev);
       }
     });
   };
@@ -58,18 +74,26 @@ export function SaveControls({
       <button
         type="button"
         disabled={isPending}
-        onClick={handleCollection}
-        className={cn(base, sizing, inCollection ? active : inactive)}
+        onClick={handleOwned}
+        className={cn(base, sizing, inOwned ? active : inactive)}
       >
-        {inCollection ? "✓ In Collection" : "Add to Collection"}
+        {inOwned ? "✓ Owned" : "Add to Owned"}
       </button>
       <button
         type="button"
         disabled={isPending}
-        onClick={handleWanted}
-        className={cn(base, sizing, inWanted ? active : inactive)}
+        onClick={handleDesired}
+        className={cn(base, sizing, inDesired ? active : inactive)}
       >
-        {inWanted ? "✓ In Wanted" : "Add to Wanted"}
+        {inDesired ? "✓ Desired" : "Add to Desired"}
+      </button>
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={handleSniffed}
+        className={cn(base, sizing, inSniffed ? active : inactive)}
+      >
+        {inSniffed ? "✓ Sniffed" : "Add to Sniffed"}
       </button>
     </div>
   );

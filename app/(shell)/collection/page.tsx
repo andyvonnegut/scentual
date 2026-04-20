@@ -1,28 +1,24 @@
-import Link from "next/link";
 import { PageShell } from "@/components/brand/PageShell";
 import { SectionHeader } from "@/components/brand/SectionHeader";
 import { Card } from "@/components/brand/Card";
-import { cn } from "@/lib/utils";
+import { LibraryFilterTabs } from "@/components/brand/LibraryFilterTabs";
 import { getSavedPerfumes, type LibraryFilter } from "@/lib/queries/library";
 import { requireUser } from "@/lib/auth";
 import { AddPerfumeSearch } from "./_components/AddPerfumeSearch";
 import { SavedCard } from "./_components/SavedCard";
 
-const FILTERS: { value: LibraryFilter; label: string }[] = [
-  { value: "all", label: "All Saved" },
-  { value: "collection", label: "Collection" },
-  { value: "wanted", label: "Wanted" },
-  { value: "both", label: "Both" },
-];
+const VALID_FILTERS: LibraryFilter[] = ["all", "owned", "desired", "sniffed"];
 
 export default async function CollectionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: LibraryFilter }>;
+  searchParams: Promise<{ filter?: string }>;
 }) {
   await requireUser("/collection");
   const params = await searchParams;
-  const active: LibraryFilter = FILTERS.some((f) => f.value === params.filter)
+  const active: LibraryFilter = VALID_FILTERS.includes(
+    params.filter as LibraryFilter,
+  )
     ? (params.filter as LibraryFilter)
     : "all";
 
@@ -37,31 +33,7 @@ export default async function CollectionPage({
           </p>
         </SectionHeader>
 
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="inline-flex rounded-[var(--radius-pill)] border border-[color:var(--line)] p-1 bg-[color:var(--bg-elevated)] w-fit">
-            {FILTERS.map((f) => {
-              const isActive = f.value === active;
-              const href =
-                f.value === "all"
-                  ? "/collection"
-                  : `/collection?filter=${f.value}`;
-              return (
-                <Link
-                  key={f.value}
-                  href={href}
-                  className={cn(
-                    "rounded-[var(--radius-pill)] px-4 py-1.5 text-sm transition-colors",
-                    isActive
-                      ? "bg-[color:var(--accent)] text-white"
-                      : "text-[color:var(--text-soft)] hover:text-[color:var(--text)]",
-                  )}
-                >
-                  {f.label}
-                </Link>
-              );
-            })}
-          </div>
-        </div>
+        <LibraryFilterTabs active={active} />
 
         <Card>
           <AddPerfumeSearch />

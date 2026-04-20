@@ -9,8 +9,9 @@ type Ref = { id: number; name: string; slug: string };
 
 type Saved = {
   id: number;
-  in_collection: boolean;
-  in_wanted: boolean;
+  in_owned: boolean;
+  in_desired: boolean;
+  in_sniffed: boolean;
   size_owned_text: string | null;
   personal_note: string | null;
   favorite: boolean;
@@ -61,14 +62,19 @@ export function SavedCard({ saved }: { saved: Saved }) {
               {perfume.manufacturer?.name}
             </Link>
             <div className="flex gap-1">
-              {saved.in_collection && (
+              {saved.in_owned && (
                 <Chip variant="fragrance-note" size="sm">
-                  Collection
+                  Owned
                 </Chip>
               )}
-              {saved.in_wanted && (
+              {saved.in_desired && (
                 <Chip variant="theme" size="sm">
-                  Wanted
+                  Desired
+                </Chip>
+              )}
+              {saved.in_sniffed && (
+                <Chip variant="store" size="sm">
+                  Sniffed
                 </Chip>
               )}
             </div>
@@ -135,8 +141,9 @@ export function SavedCard({ saved }: { saved: Saved }) {
 
         <SaveControls
           perfumeId={perfume.id}
-          initialInCollection={saved.in_collection}
-          initialInWanted={saved.in_wanted}
+          initialInOwned={saved.in_owned}
+          initialInDesired={saved.in_desired}
+          initialInSniffed={saved.in_sniffed}
           compact
         />
       </div>

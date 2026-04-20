@@ -646,15 +646,17 @@ One saved record per perfume.
 
 - `id`
 - `perfume_id`
-- `in_collection` boolean
-- `in_wanted` boolean
+- `in_owned` boolean
+- `in_desired` boolean
+- `in_sniffed` boolean
 - `size_owned_text` nullable
 - `personal_note` nullable
-- `added_to_collection_at` nullable
-- `added_to_wanted_at` nullable
+- `added_to_owned_at` nullable
+- `added_to_desired_at` nullable
+- `added_to_sniffed_at` nullable
 - `updated_at`
 
-This record holds shared metadata even when the perfume is in both states.
+This record holds shared metadata across the three list states (Owned / Desired / Sniffed).
 
 ---
 

@@ -44,7 +44,7 @@ function hasFavorite(existing: PersonalDataFields) {
   return existing?.favorite === true;
 }
 
-// A personal_perfumes row is worth keeping around (even with both flags off)
+// A personal_perfumes row is worth keeping around (even with all three flags off)
 // if the user has attached tags or written notes on it. Without this check,
 // un-toggling the last list would silently cascade-delete their tags.
 async function hasPersonalData(
@@ -83,7 +83,7 @@ function getRatingPatch(
   return { design_rating: rating };
 }
 
-export async function toggleCollection(perfumeId: number, next: boolean) {
+export async function toggleOwned(perfumeId: number, next: boolean) {
   const user = await requireUser();
   const { db, existing } = await loadPersonalRow(user.id, perfumeId);
   const nowIso = new Date().toISOString();
@@ -93,27 +93,26 @@ export async function toggleCollection(perfumeId: number, next: boolean) {
     await db.from("personal_perfumes").insert({
       user_id: user.id,
       perfume_id: perfumeId,
-      in_collection: true,
-      in_wanted: false,
-      added_to_collection_at: nowIso,
+      in_owned: true,
+      added_to_owned_at: nowIso,
     });
   } else {
-    const keepWanted = existing.in_wanted;
+    const keepOther = existing.in_desired || existing.in_sniffed;
     const shouldPreserve =
       !next &&
-      !keepWanted &&
+      !keepOther &&
       (await hasPersonalData(db, user.id, existing.id, existing));
-    if (!next && !keepWanted && !shouldPreserve) {
+    if (!next && !keepOther && !shouldPreserve) {
       await db.from("personal_perfumes").delete().eq("id", existing.id);
     } else {
       await db
         .from("personal_perfumes")
         .update({
-          in_collection: next,
-          added_to_collection_at:
-            next && !existing.in_collection
+          in_owned: next,
+          added_to_owned_at:
+            next && !existing.in_owned
               ? nowIso
-              : existing.added_to_collection_at,
+              : existing.added_to_owned_at,
         })
         .eq("id", existing.id);
     }
@@ -122,7 +121,7 @@ export async function toggleCollection(perfumeId: number, next: boolean) {
   revalidatePath("/", "layout");
 }
 
-export async function toggleWanted(perfumeId: number, next: boolean) {
+export async function toggleDesired(perfumeId: number, next: boolean) {
   const user = await requireUser();
   const { db, existing } = await loadPersonalRow(user.id, perfumeId);
   const nowIso = new Date().toISOString();
@@ -132,25 +131,64 @@ export async function toggleWanted(perfumeId: number, next: boolean) {
     await db.from("personal_perfumes").insert({
       user_id: user.id,
       perfume_id: perfumeId,
-      in_collection: false,
-      in_wanted: true,
-      added_to_wanted_at: nowIso,
+      in_desired: true,
+      added_to_desired_at: nowIso,
     });
   } else {
-    const keepCollection = existing.in_collection;
+    const keepOther = existing.in_owned || existing.in_sniffed;
     const shouldPreserve =
       !next &&
-      !keepCollection &&
+      !keepOther &&
       (await hasPersonalData(db, user.id, existing.id, existing));
-    if (!next && !keepCollection && !shouldPreserve) {
+    if (!next && !keepOther && !shouldPreserve) {
       await db.from("personal_perfumes").delete().eq("id", existing.id);
     } else {
       await db
         .from("personal_perfumes")
         .update({
-          in_wanted: next,
-          added_to_wanted_at:
-            next && !existing.in_wanted ? nowIso : existing.added_to_wanted_at,
+          in_desired: next,
+          added_to_desired_at:
+            next && !existing.in_desired
+              ? nowIso
+              : existing.added_to_desired_at,
+        })
+        .eq("id", existing.id);
+    }
+  }
+
+  revalidatePath("/", "layout");
+}
+
+export async function toggleSniffed(perfumeId: number, next: boolean) {
+  const user = await requireUser();
+  const { db, existing } = await loadPersonalRow(user.id, perfumeId);
+  const nowIso = new Date().toISOString();
+
+  if (!existing) {
+    if (!next) return;
+    await db.from("personal_perfumes").insert({
+      user_id: user.id,
+      perfume_id: perfumeId,
+      in_sniffed: true,
+      added_to_sniffed_at: nowIso,
+    });
+  } else {
+    const keepOther = existing.in_owned || existing.in_desired;
+    const shouldPreserve =
+      !next &&
+      !keepOther &&
+      (await hasPersonalData(db, user.id, existing.id, existing));
+    if (!next && !keepOther && !shouldPreserve) {
+      await db.from("personal_perfumes").delete().eq("id", existing.id);
+    } else {
+      await db
+        .from("personal_perfumes")
+        .update({
+          in_sniffed: next,
+          added_to_sniffed_at:
+            next && !existing.in_sniffed
+              ? nowIso
+              : existing.added_to_sniffed_at,
         })
         .eq("id", existing.id);
     }
@@ -182,8 +220,6 @@ export async function toggleFavorite(perfumeId: number, next: boolean) {
     await db.from("personal_perfumes").insert({
       user_id: user.id,
       perfume_id: perfumeId,
-      in_collection: false,
-      in_wanted: false,
       favorite: true,
     });
   } else {
@@ -193,8 +229,9 @@ export async function toggleFavorite(perfumeId: number, next: boolean) {
     };
     const shouldDelete =
       !next &&
-      !existing.in_collection &&
-      !existing.in_wanted &&
+      !existing.in_owned &&
+      !existing.in_desired &&
+      !existing.in_sniffed &&
       !(await hasPersonalData(db, user.id, existing.id, nextExisting));
 
     if (shouldDelete) {
@@ -228,8 +265,6 @@ export async function setPersonalRating(
     await db.from("personal_perfumes").insert({
       user_id: user.id,
       perfume_id: perfumeId,
-      in_collection: false,
-      in_wanted: false,
       ...ratingPatch,
     });
   } else {
@@ -239,8 +274,9 @@ export async function setPersonalRating(
     };
     const shouldDelete =
       rating === null &&
-      !existing.in_collection &&
-      !existing.in_wanted &&
+      !existing.in_owned &&
+      !existing.in_desired &&
+      !existing.in_sniffed &&
       !(await hasPersonalData(db, user.id, existing.id, nextExisting));
 
     if (shouldDelete) {
