@@ -6,11 +6,13 @@ import {
   getRecentPerfumes,
   getRecentlyUpdatedPerfumes,
 } from "@/lib/queries/perfumes";
+import { getSessionUser } from "@/lib/auth";
 
 export default async function Home() {
+  const user = await getSessionUser();
   const [recent, updated] = await Promise.all([
-    getRecentPerfumes(6),
-    getRecentlyUpdatedPerfumes(6),
+    getRecentPerfumes(6, user?.id ?? null),
+    getRecentlyUpdatedPerfumes(6, user?.id ?? null),
   ]);
 
   return (

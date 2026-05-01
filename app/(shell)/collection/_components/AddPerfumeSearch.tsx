@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { toggleOwned, toggleDesired, toggleSniffed } from "@/app/actions/library";
 
@@ -14,11 +15,13 @@ export function AddPerfumeSearch() {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Result[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [, startTransition] = useTransition();
 
   async function runSearch(value: string) {
     if (!value.trim()) {
       setResults([]);
+      setHasSearched(false);
       return;
     }
     setIsSearching(true);
@@ -31,7 +34,11 @@ export function AddPerfumeSearch() {
       setResults(data);
     }
     setIsSearching(false);
+    setHasSearched(true);
   }
+
+  const showEmptyFallback =
+    hasSearched && !isSearching && q.trim().length > 0 && results.length === 0;
 
   return (
     <div className="flex flex-col gap-3">
@@ -98,6 +105,26 @@ export function AddPerfumeSearch() {
           ))}
         </ul>
       )}
+      {showEmptyFallback && (
+        <Link
+          href={`/collection/add?name=${encodeURIComponent(q.trim())}`}
+          className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-[color:var(--accent)]/40 bg-[color:var(--bg-elevated)] px-4 py-3 hover:border-[color:var(--accent)]"
+        >
+          <span className="text-sm">
+            Nothing in the catalog matches{" "}
+            <span className="font-medium">&ldquo;{q.trim()}&rdquo;</span>.
+          </span>
+          <span className="text-sm font-medium text-[color:var(--accent-strong)]">
+            Add it as a custom scent →
+          </span>
+        </Link>
+      )}
+      <Link
+        href="/collection/add"
+        className="self-start text-xs text-[color:var(--text-soft)] hover:text-[color:var(--accent-strong)]"
+      >
+        Can&apos;t find it? Add a custom scent →
+      </Link>
     </div>
   );
 }

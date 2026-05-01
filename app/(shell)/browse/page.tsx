@@ -37,7 +37,7 @@ export default async function BrowsePage({
         },
         user?.id ?? null,
       ),
-      getAllManufacturers(),
+      getAllManufacturers(user?.id ?? null),
       getAllNotes(),
     ]);
 

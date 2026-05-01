@@ -63,11 +63,14 @@ export default async function PerfumeDetailPage({
   params: Promise<{ manufacturer: string; slug: string }>;
 }) {
   const { manufacturer, slug } = await params;
-  const perfume = await getPerfumeByManufacturerAndSlug(manufacturer, slug);
+  const user = await getSessionUser();
+  const perfume = await getPerfumeByManufacturerAndSlug(
+    manufacturer,
+    slug,
+    user?.id ?? null,
+  );
   if (!perfume) notFound();
   const returnPath = `/perfumes/${manufacturer}/${slug}`;
-
-  const user = await getSessionUser();
   const [personal, allNotes, allThemeTags] = await Promise.all([
     getPersonalPerfumeByPerfumeId(perfume.id),
     getAllNotes(),

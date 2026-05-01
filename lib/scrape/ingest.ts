@@ -28,19 +28,27 @@ export async function ingestOne(
   const { db, retailerId } = ctx;
   counts.seen++;
 
-  // 1. Manufacturer (global unique slug).
+  // 1. Manufacturer (global unique slug). Promote user-submitted rows to
+  // canonical in place by clearing the user flags on every upsert.
   const manufacturerSlug = slugify(scraped.manufacturerName);
   const { data: manufacturer, error: mErr } = await db
     .from("manufacturers")
     .upsert(
-      { name: scraped.manufacturerName, slug: manufacturerSlug },
+      {
+        name: scraped.manufacturerName,
+        slug: manufacturerSlug,
+        is_user_submitted: false,
+        created_by_user_id: null,
+      },
       { onConflict: "slug" },
     )
     .select("id")
     .single();
   if (mErr || !manufacturer) throw mErr ?? new Error("manufacturer upsert failed");
 
-  // 2. Perfume (manufacturer_id + slug).
+  // 2. Perfume (manufacturer_id + slug). Same in-place promotion: if a user
+  // had added this scent before the scraper found it, the row id stays the
+  // same and every personal_perfumes link keeps working.
   const perfumeSlug = slugify(scraped.name);
   const { data: perfume, error: pErr } = await db
     .from("perfumes")
@@ -50,6 +58,8 @@ export async function ingestOne(
         name: scraped.name,
         slug: perfumeSlug,
         canonical_description: null,
+        is_user_submitted: false,
+        created_by_user_id: null,
       },
       { onConflict: "manufacturer_id,slug" },
     )

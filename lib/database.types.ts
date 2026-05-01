@@ -32,6 +32,8 @@ export type Database = {
           slug: string;
           created_at: string;
           updated_at: string;
+          created_by_user_id: string | null;
+          is_user_submitted: boolean;
         };
         Insert: {
           id?: number;
@@ -39,6 +41,8 @@ export type Database = {
           slug: string;
           created_at?: string;
           updated_at?: string;
+          created_by_user_id?: string | null;
+          is_user_submitted?: boolean;
         };
         Update: {
           id?: number;
@@ -46,6 +50,8 @@ export type Database = {
           slug?: string;
           created_at?: string;
           updated_at?: string;
+          created_by_user_id?: string | null;
+          is_user_submitted?: boolean;
         };
         Relationships: [];
       };
@@ -58,6 +64,8 @@ export type Database = {
           canonical_description: string | null;
           created_at: string;
           updated_at: string;
+          created_by_user_id: string | null;
+          is_user_submitted: boolean;
         };
         Insert: {
           id?: number;
@@ -67,6 +75,8 @@ export type Database = {
           canonical_description?: string | null;
           created_at?: string;
           updated_at?: string;
+          created_by_user_id?: string | null;
+          is_user_submitted?: boolean;
         };
         Update: {
           id?: number;
@@ -76,6 +86,8 @@ export type Database = {
           canonical_description?: string | null;
           created_at?: string;
           updated_at?: string;
+          created_by_user_id?: string | null;
+          is_user_submitted?: boolean;
         };
         Relationships: [
           {

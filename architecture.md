@@ -65,7 +65,10 @@ Data: `getPerfumeByManufacturerAndSlug` returns the public perfume tree (manufac
 When a user is not signed in, the page renders the catalog data plus a "Sign in to save, rate, and journal" CTA in place of the favorite star, `SaveControls`, `RatingsControlGroup`, `TagTypeahead`, and `JournalSection`.
 
 ### `/collection` — Collection
-Saved-perfumes page. Header shows only **Collection** with the perfume count, with no micro-label above it. Tab bar (`LibraryFilterTabs`): **All** (default) / **Owned** / **Desired** / **Sniffed** via `?filter=`. The active tab uses the `accent-strong` underline from the perfume-page source tabs plus the semibold `accent-strong` text treatment from the top nav. Legacy filter values (`collection` / `wanted` / `both`) redirect to their new equivalents (`owned` / `desired` / `all`). Top card is `AddPerfumeSearch` (typeahead into `/api/catalog/search`, three buttons per hit to add to Owned / Desired / Sniffed). Grid of `SavedCard`s (perfume, house, favorite star beside the perfume name, Owned / Desired / Sniffed chips, size_owned, personal note, store notes, personal-note chips, theme tags, compact three-row `RatingsControlGroup` with inline right-side labels only, compact `SaveControls`). Data: `getSavedPerfumes(filter)`.
+Saved-perfumes page. Header shows only **Collection** with the perfume count, with no micro-label above it. Tab bar (`LibraryFilterTabs`): **All** (default) / **Owned** / **Desired** / **Sniffed** via `?filter=`. The active tab uses the `accent-strong` underline from the perfume-page source tabs plus the semibold `accent-strong` text treatment from the top nav. Legacy filter values (`collection` / `wanted` / `both`) redirect to their new equivalents (`owned` / `desired` / `all`). Top card is `AddPerfumeSearch` (typeahead into `/api/catalog/search`, three buttons per hit to add to Owned / Desired / Sniffed). When the catalog search returns zero matches, the card swaps in a prominent "Add it as a custom scent" link that carries the typed query into `/collection/add?name=...`; an always-visible muted "Can't find it? Add a custom scent →" link sits below the input. Grid of `SavedCard`s (perfume, house, favorite star beside the perfume name, Owned / Desired / Sniffed chips, size_owned, personal note, store notes, personal-note chips, theme tags, compact three-row `RatingsControlGroup` with inline right-side labels only, compact `SaveControls`). Data: `getSavedPerfumes(filter)`.
+
+### `/collection/add` — Add a custom scent
+Lets the user create a perfume that isn't in the catalog and drop it into Owned, Desired, or Sniffed. Two-stage typeahead form (`AddCustomScentForm`): (1) **House** — typeahead-with-create against `/api/manufacturers/search`. Picking an existing house reuses its `manufacturer_id`; pressing Enter on an empty-results state stages a new house (the server action does the actual insert). (2) **Perfume name** — disabled until a house is locked. Once a house is selected, the field becomes a manufacturer-scoped catalog typeahead (`/api/catalog/search?q=...&manufacturer_id=`); if a real catalog hit appears, the user sees a "Use this" CTA that calls the existing `toggleOwned/Desired/Sniffed` action and skips the form. (3) **List kind** — Owned / Desired / Sniffed pill picker (Owned default). On submit, calls `createUserPerfume` (`app/actions/user-perfumes.ts`). Custom rows are private to the creator — they appear in the creator's `/collection`, `/perfumes/[manufacturer]/[slug]`, and `/browse`, but other users see only canonical rows. If the scraper later finds the same scent (matching `(manufacturer.slug, perfume.slug)`), `ingestOne` clears the user-submitted flags in place so the row becomes canonical without changing its id, leaving every `personal_perfumes` link intact.
 
 ### `/journal` — Journal list
 Reverse-chronological by `entry_date`, then `created_at`. Header shows only **Curated scentual memories...** with the entry count and "+ New entry" link, with no micro-label above it. Each entry renders as an editable card with formatted date, linked perfume, optional title, body, and inline `Edit` / `Delete` controls. Delete requires an in-card confirmation step. Supports `?perfume=<id>` to filter to one perfume. Data: `listJournalEntries`.
@@ -107,6 +110,9 @@ Write actions against user-scoped tables (`personal_perfumes`, `personal_perfume
 ### `profile.ts`
 - `updateDisplayName(formData)` — trims the `display_name` input, updates `profiles` where `id = auth.uid()`, revalidates the layout so the header picks up the new label.
 
+### `user-perfumes.ts`
+- `createUserPerfume({ manufacturerId, manufacturerName, perfumeName, listKind })` — resolves the manufacturer (existing id, slug match, or new `is_user_submitted=true` insert with `created_by_user_id = auth.uid()`), then resolves the perfume the same way. `(manufacturer_id, slug)` is the global dedup key, so a collision with an existing canonical or another user's user-submitted row silently uses that id. Applies the requested list state by calling the existing `toggleOwned/Desired/Sniffed` actions so timestamps and the bare-row dedup logic stay identical to the catalog flow. Uses the session client (not service-role) so the new INSERT RLS policies on `manufacturers`/`perfumes` enforce the `is_user_submitted = true AND created_by_user_id = auth.uid()` invariant from the database side.
+
 ### `journal.ts`
 - `createJournalEntry(formData)` — reads `perfume_id`, optional `title`, required `body`, `entry_date`, optional `redirect_to`. Inserts, revalidates `/journal` plus the redirect target when provided, then redirects.
 - `updateJournalEntry(formData)` — reads `id`, editable fields, optional `return_path`; updates and revalidates `/journal` plus the return path when provided.
@@ -126,8 +132,11 @@ Write actions against user-scoped tables (`personal_perfumes`, `personal_perfume
 ### `GET /api/dev/scrape/[source]` — same, no auth
 Manual trigger for dev; do not expose in prod without gating.
 
-### `GET /api/catalog/search?q=...` — catalog typeahead
-Returns up to 25 `{ id, name, slug, manufacturer: { id, name, slug } }` whose perfume name OR manufacturer name matches `q` (case-insensitive substring). Consumed by `AddPerfumeSearch` (library) and `PerfumePicker` (journal).
+### `GET /api/catalog/search?q=...&manufacturer_id=...` — catalog typeahead
+Returns up to 25 `{ id, name, slug, manufacturer: { id, name, slug } }` whose perfume name OR manufacturer name matches `q` (case-insensitive substring). Optional `manufacturer_id` constrains both branches to one house (used by the `/collection/add` perfume-name field to dedup against an existing canonical row). Applies the user-submitted privacy filter via `getSessionUser()`: anonymous callers and other users never see another user's custom perfumes. Consumed by `AddPerfumeSearch` (library), `PerfumePicker` (journal), and `AddCustomScentForm` (custom-scent flow).
+
+### `GET /api/manufacturers/search?q=...&limit=...` — house typeahead
+Returns up to 8 (max 25) `{ id, name, slug }` whose name matches `q` (case-insensitive substring). Same privacy filter as the catalog search. Consumed by the house field in `/collection/add`.
 
 ### `GET /api/catalog/browse?q=...&manufacturer=...&note=...` — live browse filters
 Returns `{ total, results }` for the `/browse` live filter UI. `q` is whitespace-tokenized and each token must match somewhere across perfume name, manufacturer name, store-note attachments, and — when the request is authenticated — the caller's own personal-note attachments. `manufacturer` is an exact manufacturer slug filter. Repeated `note` params are exact-match AND filters on canonical note slugs. Repeated `note_q` params are broad note-word AND filters using case-insensitive `note.name contains <text>` semantics. For anonymous callers, personal-note branches are skipped so one user's personal notes cannot leak into another browser. Legacy `store:<slug>` / `user:<slug>` URLs are still parsed and normalized as exact-note filters.
@@ -153,7 +162,7 @@ See the Routes section above.
 
 ### Queries (`lib/queries/`)
 Read-only, server-only. Grouped by domain:
-- **`perfumes.ts`**: `getRecentPerfumes`, `getRecentlyUpdatedPerfumes`, `browsePerfumes`, `searchCatalog`, `getAllManufacturers`, `getAllNotes`, `getPerfumeByManufacturerAndSlug`, `getPriceHistory`, `getStockHistory`, `getManufacturerBySlug`, `getPerfumesByManufacturer`.
+- **`perfumes.ts`**: `getRecentPerfumes`, `getRecentlyUpdatedPerfumes`, `browsePerfumes`, `searchCatalog`, `searchManufacturers`, `getAllManufacturers`, `getAllNotes`, `getPerfumeByManufacturerAndSlug`, `getPriceHistory`, `getStockHistory`, `getManufacturerBySlug`, `getPerfumesByManufacturer`. Each public-facing read accepts an optional `userId` and applies the user-submitted privacy filter via `applyVisibility(query, userId)` — `is_user_submitted = false OR created_by_user_id = userId` for authenticated callers, `is_user_submitted = false` for anonymous. Calling pages (`/`, `/browse`, `/browse/manufacturers/[slug]`, `/perfumes/[manufacturer]/[slug]`) load `getSessionUser()` once and pass `user?.id ?? null` through.
 - **`library.ts`**: `LibraryFilter` type; `getSavedPerfumes(filter)`, `getPersonalPerfumeByPerfumeId`, `getAllThemeTags`.
 - **`journal.ts`**: `listJournalEntries(perfumeId?)`, `listJournalEntriesForPerfume`.
 
@@ -218,8 +227,10 @@ Cron invocations require `CRON_SECRET` to be set in the Vercel Production enviro
 ## Supabase schema
 
 ### Catalog
-- **`manufacturers`** — `id, name, slug UNIQUE, created_at, updated_at`.
-- **`perfumes`** — `id, manufacturer_id→, name, slug, canonical_description?`. `UNIQUE(manufacturer_id, slug)`. Indexed on `manufacturer_id`, `created_at desc`, `updated_at desc`.
+- **`manufacturers`** — `id, name, slug UNIQUE, created_at, updated_at, created_by_user_id uuid? → auth.users(id) ON DELETE SET NULL, is_user_submitted boolean default false`. Partial index on `created_by_user_id` where not null.
+- **`perfumes`** — `id, manufacturer_id→, name, slug, canonical_description?, created_by_user_id uuid? → auth.users(id) ON DELETE SET NULL, is_user_submitted boolean default false`. `UNIQUE(manufacturer_id, slug)`. Indexed on `manufacturer_id`, `created_at desc`, `updated_at desc`, plus a partial index on `created_by_user_id` where not null.
+
+User-submitted rows on `manufacturers` and `perfumes` are stored in the same tables as canonical scraper data — `(manufacturer.slug, perfume.slug)` remains the global identity. Visibility is enforced at the query layer via `applyVisibility` (see `lib/queries/perfumes.ts`): an authenticated caller sees `is_user_submitted = false OR created_by_user_id = auth.uid()`; an anonymous caller sees only `is_user_submitted = false`. RLS on these two tables additionally constrains *writes* from the browser: `INSERT` requires `is_user_submitted = true AND created_by_user_id = auth.uid()`; `UPDATE`/`DELETE` require `created_by_user_id = auth.uid()`. Service-role writes (scraper, cron) bypass RLS as before. When `ingestOne` upserts a perfume or manufacturer that already has `is_user_submitted = true`, it sets `is_user_submitted=false` and `created_by_user_id=null` — the row is promoted to canonical in place, the id is preserved, and every `personal_perfumes` link keeps working.
 - **`retailers`** — `id, name, slug UNIQUE, base_url`.
 
 ### Listings & variants

@@ -7,6 +7,7 @@ import {
   getManufacturerBySlug,
   getPerfumesByManufacturer,
 } from "@/lib/queries/perfumes";
+import { getSessionUser } from "@/lib/auth";
 
 export default async function ManufacturerPage({
   params,
@@ -14,10 +15,14 @@ export default async function ManufacturerPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const manufacturer = await getManufacturerBySlug(slug);
+  const user = await getSessionUser();
+  const manufacturer = await getManufacturerBySlug(slug, user?.id ?? null);
   if (!manufacturer) notFound();
 
-  const perfumes = await getPerfumesByManufacturer(manufacturer.id);
+  const perfumes = await getPerfumesByManufacturer(
+    manufacturer.id,
+    user?.id ?? null,
+  );
 
   return (
     <PageShell>

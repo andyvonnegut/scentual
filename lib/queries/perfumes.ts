@@ -15,27 +15,52 @@ const BROWSE_SELECT = `
   )
 `;
 
-export async function getRecentPerfumes(limit = 12) {
+// Privacy filter for user-submitted catalog rows. A perfume or manufacturer is
+// visible to: (a) anyone if it isn't user-submitted, or (b) only its creator
+// if it is. We enforce this at the query layer rather than RLS because the
+// scraper uses the service-role client (which bypasses RLS) and we don't want
+// to special-case its reads.
+function visibilityClause(userId: string | null) {
+  return userId
+    ? `is_user_submitted.eq.false,created_by_user_id.eq.${userId}`
+    : null;
+}
+
+function applyVisibility<T>(query: T, userId: string | null): T {
+  const clause = visibilityClause(userId);
+  const q = query as unknown as {
+    or: (s: string) => unknown;
+    eq: (column: string, value: unknown) => unknown;
+  };
+  return (clause ? q.or(clause) : q.eq("is_user_submitted", false)) as T;
+}
+
+export async function getRecentPerfumes(limit = 12, userId: string | null = null) {
   const db = await createClient();
-  const { data } = await db
+  const query = db
     .from("perfumes")
     .select(
       "id, name, slug, created_at, manufacturer:manufacturers(id, name, slug)",
     )
     .order("created_at", { ascending: false })
     .limit(limit);
+  const { data } = await applyVisibility(query, userId);
   return data ?? [];
 }
 
-export async function getRecentlyUpdatedPerfumes(limit = 12) {
+export async function getRecentlyUpdatedPerfumes(
+  limit = 12,
+  userId: string | null = null,
+) {
   const db = await createClient();
-  const { data } = await db
+  const query = db
     .from("perfumes")
     .select(
       "id, name, slug, updated_at, manufacturer:manufacturers(id, name, slug)",
     )
     .order("updated_at", { ascending: false })
     .limit(limit);
+  const { data } = await applyVisibility(query, userId);
   return data ?? [];
 }
 
@@ -82,13 +107,17 @@ function personalRowsToIdSet(rows: PersonalNoteRow[] | null | undefined) {
   return ids;
 }
 
-async function getPerfumeIdsForManufacturerSlug(manufacturerSlug: string) {
+async function getPerfumeIdsForManufacturerSlug(
+  manufacturerSlug: string,
+  userId: string | null,
+) {
   const db = await createClient();
-  const { data } = await db
+  const query = db
     .from("perfumes")
     .select("id, manufacturer:manufacturers!inner(slug)")
     .eq("manufacturer.slug", manufacturerSlug);
 
+  const { data } = await applyVisibility(query, userId);
   return rowsToIdSet(data as PerfumeIdRow[] | null | undefined);
 }
 
@@ -186,12 +215,21 @@ async function getPerfumeIdsForToken(token: string, userId: string | null) {
         .ilike("note.name", pattern)
     : null;
 
-  const [byName, byHouse, byStoreNote, byPersonalNote] = await Promise.all([
+  const byNameQuery = applyVisibility(
     db.from("perfumes").select("id").ilike("name", pattern),
+    userId,
+  );
+  const byHouseQuery = applyVisibility(
     db
       .from("perfumes")
       .select("id, manufacturer:manufacturers!inner(name)")
       .ilike("manufacturer.name", pattern),
+    userId,
+  );
+
+  const [byName, byHouse, byStoreNote, byPersonalNote] = await Promise.all([
+    byNameQuery,
+    byHouseQuery,
     db
       .from("perfume_notes")
       .select("perfume_id, note:notes!inner(name)")
@@ -221,15 +259,20 @@ async function getPerfumeIdsForToken(token: string, userId: string | null) {
   return ids;
 }
 
-async function fetchBrowseRowsByIds(ids: number[], limit: number) {
+async function fetchBrowseRowsByIds(
+  ids: number[],
+  limit: number,
+  userId: string | null,
+) {
   const db = await createClient();
-  const { data } = await db
+  const query = db
     .from("perfumes")
     .select(BROWSE_SELECT)
     .in("id", ids)
     .order("name", { ascending: true })
     .limit(limit);
 
+  const { data } = await applyVisibility(query, userId);
   return (data ?? []) as BrowsePerfumeCard[];
 }
 
@@ -246,11 +289,12 @@ export async function browsePerfumes(
 
   if (!hasFilters) {
     const db = await createClient();
-    const { data, count } = await db
+    const query = db
       .from("perfumes")
       .select(BROWSE_SELECT, { count: "exact" })
       .order("name", { ascending: true })
       .limit(limit);
+    const { data, count } = await applyVisibility(query, userId);
 
     return {
       total: count ?? 0,
@@ -260,12 +304,13 @@ export async function browsePerfumes(
 
   if (manufacturerSlug && tokens.length === 0 && notes.length === 0) {
     const db = await createClient();
-    const { data, count } = await db
+    const query = db
       .from("perfumes")
       .select(BROWSE_SELECT, { count: "exact" })
       .eq("manufacturer.slug", manufacturerSlug)
       .order("name", { ascending: true })
       .limit(limit);
+    const { data, count } = await applyVisibility(query, userId);
 
     return {
       total: count ?? 0,
@@ -276,7 +321,9 @@ export async function browsePerfumes(
   const constraintPromises: Promise<Set<number>>[] = [];
 
   if (manufacturerSlug) {
-    constraintPromises.push(getPerfumeIdsForManufacturerSlug(manufacturerSlug));
+    constraintPromises.push(
+      getPerfumeIdsForManufacturerSlug(manufacturerSlug, userId),
+    );
   }
 
   for (const note of notes) {
@@ -301,35 +348,50 @@ export async function browsePerfumes(
     return { total: 0, results: [] };
   }
 
-  const results = await fetchBrowseRowsByIds(matchingIds, limit);
+  const results = await fetchBrowseRowsByIds(matchingIds, limit, userId);
   return {
     total: matchingIds.length,
     results,
   };
 }
 
-export async function searchCatalog(q: string, limit = 25) {
+export async function searchCatalog(
+  q: string,
+  userId: string | null = null,
+  options: { limit?: number; manufacturerId?: number | null } = {},
+) {
   const trimmed = q.trim();
   if (!trimmed) return [];
+  const limit = options.limit ?? 25;
   const db = await createClient();
   const pattern = `%${trimmed}%`;
 
   const selectShape =
     "id, name, slug, manufacturer:manufacturers!inner(id, name, slug)";
 
+  const baseByName = db
+    .from("perfumes")
+    .select(selectShape)
+    .ilike("name", pattern)
+    .order("name", { ascending: true })
+    .limit(limit);
+  const baseByHouse = db
+    .from("perfumes")
+    .select(selectShape)
+    .ilike("manufacturer.name", pattern)
+    .order("name", { ascending: true })
+    .limit(limit);
+
+  const scopedByName = options.manufacturerId
+    ? baseByName.eq("manufacturer_id", options.manufacturerId)
+    : baseByName;
+  const scopedByHouse = options.manufacturerId
+    ? baseByHouse.eq("manufacturer_id", options.manufacturerId)
+    : baseByHouse;
+
   const [byName, byHouse] = await Promise.all([
-    db
-      .from("perfumes")
-      .select(selectShape)
-      .ilike("name", pattern)
-      .order("name", { ascending: true })
-      .limit(limit),
-    db
-      .from("perfumes")
-      .select(selectShape)
-      .ilike("manufacturer.name", pattern)
-      .order("name", { ascending: true })
-      .limit(limit),
+    applyVisibility(scopedByName, userId),
+    applyVisibility(scopedByHouse, userId),
   ]);
 
   const seen = new Set<number>();
@@ -344,12 +406,33 @@ export async function searchCatalog(q: string, limit = 25) {
     .slice(0, limit);
 }
 
-export async function getAllManufacturers() {
+export async function searchManufacturers(
+  q: string,
+  userId: string | null = null,
+  limit = 8,
+) {
+  const trimmed = q.trim();
+  if (!trimmed) return [];
   const db = await createClient();
-  const { data } = await db
+  const pattern = `%${trimmed}%`;
+
+  const query = db
+    .from("manufacturers")
+    .select("id, name, slug")
+    .ilike("name", pattern)
+    .order("name", { ascending: true })
+    .limit(limit);
+  const { data } = await applyVisibility(query, userId);
+  return data ?? [];
+}
+
+export async function getAllManufacturers(userId: string | null = null) {
+  const db = await createClient();
+  const query = db
     .from("manufacturers")
     .select("id, name, slug")
     .order("name", { ascending: true });
+  const { data } = await applyVisibility(query, userId);
   return data ?? [];
 }
 
@@ -376,19 +459,23 @@ export async function getAllNotes() {
 export async function getPerfumeByManufacturerAndSlug(
   manufacturerSlug: string,
   perfumeSlug: string,
+  userId: string | null = null,
 ) {
   const db = await createClient();
 
-  const { data: manufacturer } = await db
+  const manufacturerQuery = db
     .from("manufacturers")
     .select("id, name, slug")
-    .eq("slug", manufacturerSlug)
-    .maybeSingle();
+    .eq("slug", manufacturerSlug);
+  const { data: manufacturer } = await applyVisibility(
+    manufacturerQuery,
+    userId,
+  ).maybeSingle();
   if (!manufacturer) return null;
 
   // Personal data (personal_perfumes, journal_entries) is loaded separately
   // via user-scoped queries so it cannot leak across users.
-  const { data: perfume } = await db
+  const perfumeQuery = db
     .from("perfumes")
     .select(
       `
@@ -409,8 +496,11 @@ export async function getPerfumeByManufacturerAndSlug(
       `,
     )
     .eq("manufacturer_id", manufacturer.id)
-    .eq("slug", perfumeSlug)
-    .maybeSingle();
+    .eq("slug", perfumeSlug);
+  const { data: perfume } = await applyVisibility(
+    perfumeQuery,
+    userId,
+  ).maybeSingle();
 
   return perfume;
 }
@@ -437,22 +527,29 @@ export async function getStockHistory(listingVariantId: number) {
   return data ?? [];
 }
 
-export async function getManufacturerBySlug(slug: string) {
+export async function getManufacturerBySlug(
+  slug: string,
+  userId: string | null = null,
+) {
   const db = await createClient();
-  const { data } = await db
+  const query = db
     .from("manufacturers")
     .select("id, name, slug")
-    .eq("slug", slug)
-    .maybeSingle();
+    .eq("slug", slug);
+  const { data } = await applyVisibility(query, userId).maybeSingle();
   return data;
 }
 
-export async function getPerfumesByManufacturer(manufacturerId: number) {
+export async function getPerfumesByManufacturer(
+  manufacturerId: number,
+  userId: string | null = null,
+) {
   const db = await createClient();
-  const { data } = await db
+  const query = db
     .from("perfumes")
     .select("id, name, slug, created_at")
     .eq("manufacturer_id", manufacturerId)
     .order("name", { ascending: true });
+  const { data } = await applyVisibility(query, userId);
   return data ?? [];
 }
