@@ -37,6 +37,7 @@ export function TagTypeahead({
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs local optimistic state with the prop after a server action revalidates.
     setAttachedTags(attached);
   }, [attached]);
 

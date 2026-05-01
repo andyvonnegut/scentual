@@ -22,6 +22,7 @@ export type PersonalRatingScale = "projection" | "overall" | "design";
 type PersonalDataFields = {
   size_owned_text?: string | null;
   personal_note?: string | null;
+  personal_narrative?: string | null;
   favorite?: boolean | null;
   projection_rating?: number | null;
   overall_rating?: number | null;
@@ -53,7 +54,12 @@ async function hasPersonalData(
   personalId: number,
   existing: PersonalDataFields,
 ): Promise<boolean> {
-  if (existing?.size_owned_text || existing?.personal_note) return true;
+  if (
+    existing?.size_owned_text ||
+    existing?.personal_note ||
+    existing?.personal_narrative
+  )
+    return true;
   if (hasFavorite(existing)) return true;
   if (hasAnyRating(existing)) return true;
   const [noteCount, themeCount] = await Promise.all([
@@ -208,6 +214,46 @@ export async function updatePersonalMeta(
     .update(patch)
     .eq("user_id", user.id)
     .eq("perfume_id", perfumeId);
+  revalidatePath("/", "layout");
+}
+
+export async function updatePersonalNarrative(
+  perfumeId: number,
+  narrative: string | null,
+) {
+  const user = await requireUser();
+  const { db, existing } = await loadPersonalRow(user.id, perfumeId);
+  const cleaned = narrative?.trim() ? narrative : null;
+
+  if (!existing) {
+    if (!cleaned) return;
+    await db.from("personal_perfumes").insert({
+      user_id: user.id,
+      perfume_id: perfumeId,
+      personal_narrative: cleaned,
+    });
+  } else {
+    const nextExisting: PersonalPerfumeUpdate = {
+      ...existing,
+      personal_narrative: cleaned,
+    };
+    const shouldDelete =
+      cleaned === null &&
+      !existing.in_owned &&
+      !existing.in_desired &&
+      !existing.in_sniffed &&
+      !(await hasPersonalData(db, user.id, existing.id, nextExisting));
+
+    if (shouldDelete) {
+      await db.from("personal_perfumes").delete().eq("id", existing.id);
+    } else {
+      await db
+        .from("personal_perfumes")
+        .update({ personal_narrative: cleaned })
+        .eq("id", existing.id);
+    }
+  }
+
   revalidatePath("/", "layout");
 }
 

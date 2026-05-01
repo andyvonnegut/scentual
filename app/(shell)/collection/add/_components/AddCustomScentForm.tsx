@@ -348,12 +348,9 @@ function PerfumeNameField({
   }, []);
 
   useEffect(() => {
-    if (!manufacturerId) {
-      setResults([]);
-      return;
-    }
     const trimmed = value.trim();
-    if (!trimmed) {
+    if (!manufacturerId || !trimmed) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- debounced typeahead reset when the dependent inputs invalidate the in-flight search.
       setResults([]);
       return;
     }

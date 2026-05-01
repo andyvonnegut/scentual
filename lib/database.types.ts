@@ -454,6 +454,7 @@ export type Database = {
           in_sniffed: boolean;
           size_owned_text: string | null;
           personal_note: string | null;
+          personal_narrative: string | null;
           favorite: boolean;
           projection_rating: number | null;
           overall_rating: number | null;
@@ -472,6 +473,7 @@ export type Database = {
           in_sniffed?: boolean;
           size_owned_text?: string | null;
           personal_note?: string | null;
+          personal_narrative?: string | null;
           favorite?: boolean;
           projection_rating?: number | null;
           overall_rating?: number | null;
@@ -490,6 +492,7 @@ export type Database = {
           in_sniffed?: boolean;
           size_owned_text?: string | null;
           personal_note?: string | null;
+          personal_narrative?: string | null;
           favorite?: boolean;
           projection_rating?: number | null;
           overall_rating?: number | null;

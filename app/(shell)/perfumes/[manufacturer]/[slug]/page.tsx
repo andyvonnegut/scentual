@@ -8,7 +8,7 @@ import { FavoriteStar } from "@/components/brand/FavoriteStar";
 import { SaveControls } from "@/components/brand/SaveControls";
 import { RatingsControlGroup } from "@/components/brand/RatingControl";
 import { TagTypeahead } from "@/components/brand/TagTypeahead";
-import { SourceDescriptionTabs } from "@/components/brand/SourceDescriptionTabs";
+import { PerfumeNarrativeTabs } from "@/components/brand/PerfumeNarrativeTabs";
 import {
   getPerfumeByManufacturerAndSlug,
   getPriceHistory,
@@ -247,7 +247,12 @@ export default async function PerfumeDetailPage({
             </section>
           )}
 
-          <SourceDescriptionTabs listings={perfume.perfume_listings ?? []} />
+          <PerfumeNarrativeTabs
+            listings={perfume.perfume_listings ?? []}
+            isAuthed={Boolean(user)}
+            perfumeId={perfume.id}
+            initialNarrative={personal?.personal_narrative ?? null}
+          />
         </div>
 
         <aside className="flex flex-col gap-8">
