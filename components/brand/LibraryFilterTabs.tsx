@@ -7,6 +7,7 @@ const TABS: { value: LibraryFilter; label: string }[] = [
   { value: "owned", label: "Owned" },
   { value: "desired", label: "Desired" },
   { value: "sniffed", label: "Sniffed" },
+  { value: "curious", label: "Curious" },
 ];
 
 export function LibraryFilterTabs({ active }: { active: LibraryFilter }) {

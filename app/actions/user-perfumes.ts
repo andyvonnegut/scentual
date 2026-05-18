@@ -7,9 +7,10 @@ import {
   toggleOwned,
   toggleDesired,
   toggleSniffed,
+  toggleCurious,
 } from "@/app/actions/library";
 
-export type ListKind = "owned" | "desired" | "sniffed";
+export type ListKind = "owned" | "desired" | "sniffed" | "curious";
 
 export type CreateUserPerfumeResult =
   | { ok: true; perfumeId: number; redirectTo: string }
@@ -126,8 +127,10 @@ export async function createUserPerfume(input: {
     await toggleOwned(perfumeId, true);
   } else if (input.listKind === "desired") {
     await toggleDesired(perfumeId, true);
-  } else {
+  } else if (input.listKind === "sniffed") {
     await toggleSniffed(perfumeId, true);
+  } else {
+    await toggleCurious(perfumeId, true);
   }
 
   return {

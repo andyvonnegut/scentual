@@ -11,6 +11,7 @@ import {
   toggleOwned,
   toggleDesired,
   toggleSniffed,
+  toggleCurious,
 } from "@/app/actions/library";
 
 type ManufacturerResult = { id: number; name: string; slug: string };
@@ -29,6 +30,7 @@ const LIST_KINDS: { value: ListKind; label: string }[] = [
   { value: "owned", label: "Owned" },
   { value: "desired", label: "Desired" },
   { value: "sniffed", label: "Sniffed" },
+  { value: "curious", label: "Curious" },
 ];
 
 export function AddCustomScentForm({
@@ -381,7 +383,8 @@ function PerfumeNameField({
     startTransition(async () => {
       if (listKind === "owned") await toggleOwned(row.id, true);
       else if (listKind === "desired") await toggleDesired(row.id, true);
-      else await toggleSniffed(row.id, true);
+      else if (listKind === "sniffed") await toggleSniffed(row.id, true);
+      else await toggleCurious(row.id, true);
       router.push(`/collection?filter=${listKind}`);
     });
   };

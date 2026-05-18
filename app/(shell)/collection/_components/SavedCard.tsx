@@ -12,6 +12,7 @@ type Saved = {
   in_owned: boolean;
   in_desired: boolean;
   in_sniffed: boolean;
+  in_curious: boolean;
   size_owned_text: string | null;
   personal_note: string | null;
   favorite: boolean;
@@ -75,6 +76,11 @@ export function SavedCard({ saved }: { saved: Saved }) {
               {saved.in_sniffed && (
                 <Chip variant="store" size="sm">
                   Sniffed
+                </Chip>
+              )}
+              {saved.in_curious && (
+                <Chip variant="fragrance-note" size="sm">
+                  Curious
                 </Chip>
               )}
             </div>
@@ -144,6 +150,7 @@ export function SavedCard({ saved }: { saved: Saved }) {
           initialInOwned={saved.in_owned}
           initialInDesired={saved.in_desired}
           initialInSniffed={saved.in_sniffed}
+          initialInCurious={saved.in_curious}
           compact
         />
       </div>

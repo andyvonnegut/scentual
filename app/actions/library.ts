@@ -45,7 +45,7 @@ function hasFavorite(existing: PersonalDataFields) {
   return existing?.favorite === true;
 }
 
-// A personal_perfumes row is worth keeping around (even with all three flags off)
+// A personal_perfumes row is worth keeping around (even with all four flags off)
 // if the user has attached tags or written notes on it. Without this check,
 // un-toggling the last list would silently cascade-delete their tags.
 async function hasPersonalData(
@@ -103,7 +103,8 @@ export async function toggleOwned(perfumeId: number, next: boolean) {
       added_to_owned_at: nowIso,
     });
   } else {
-    const keepOther = existing.in_desired || existing.in_sniffed;
+    const keepOther =
+      existing.in_desired || existing.in_sniffed || existing.in_curious;
     const shouldPreserve =
       !next &&
       !keepOther &&
@@ -141,7 +142,8 @@ export async function toggleDesired(perfumeId: number, next: boolean) {
       added_to_desired_at: nowIso,
     });
   } else {
-    const keepOther = existing.in_owned || existing.in_sniffed;
+    const keepOther =
+      existing.in_owned || existing.in_sniffed || existing.in_curious;
     const shouldPreserve =
       !next &&
       !keepOther &&
@@ -179,7 +181,8 @@ export async function toggleSniffed(perfumeId: number, next: boolean) {
       added_to_sniffed_at: nowIso,
     });
   } else {
-    const keepOther = existing.in_owned || existing.in_desired;
+    const keepOther =
+      existing.in_owned || existing.in_desired || existing.in_curious;
     const shouldPreserve =
       !next &&
       !keepOther &&
@@ -195,6 +198,45 @@ export async function toggleSniffed(perfumeId: number, next: boolean) {
             next && !existing.in_sniffed
               ? nowIso
               : existing.added_to_sniffed_at,
+        })
+        .eq("id", existing.id);
+    }
+  }
+
+  revalidatePath("/", "layout");
+}
+
+export async function toggleCurious(perfumeId: number, next: boolean) {
+  const user = await requireUser();
+  const { db, existing } = await loadPersonalRow(user.id, perfumeId);
+  const nowIso = new Date().toISOString();
+
+  if (!existing) {
+    if (!next) return;
+    await db.from("personal_perfumes").insert({
+      user_id: user.id,
+      perfume_id: perfumeId,
+      in_curious: true,
+      added_to_curious_at: nowIso,
+    });
+  } else {
+    const keepOther =
+      existing.in_owned || existing.in_desired || existing.in_sniffed;
+    const shouldPreserve =
+      !next &&
+      !keepOther &&
+      (await hasPersonalData(db, user.id, existing.id, existing));
+    if (!next && !keepOther && !shouldPreserve) {
+      await db.from("personal_perfumes").delete().eq("id", existing.id);
+    } else {
+      await db
+        .from("personal_perfumes")
+        .update({
+          in_curious: next,
+          added_to_curious_at:
+            next && !existing.in_curious
+              ? nowIso
+              : existing.added_to_curious_at,
         })
         .eq("id", existing.id);
     }
@@ -242,6 +284,7 @@ export async function updatePersonalNarrative(
       !existing.in_owned &&
       !existing.in_desired &&
       !existing.in_sniffed &&
+      !existing.in_curious &&
       !(await hasPersonalData(db, user.id, existing.id, nextExisting));
 
     if (shouldDelete) {
@@ -278,6 +321,7 @@ export async function toggleFavorite(perfumeId: number, next: boolean) {
       !existing.in_owned &&
       !existing.in_desired &&
       !existing.in_sniffed &&
+      !existing.in_curious &&
       !(await hasPersonalData(db, user.id, existing.id, nextExisting));
 
     if (shouldDelete) {
@@ -323,6 +367,7 @@ export async function setPersonalRating(
       !existing.in_owned &&
       !existing.in_desired &&
       !existing.in_sniffed &&
+      !existing.in_curious &&
       !(await hasPersonalData(db, user.id, existing.id, nextExisting));
 
     if (shouldDelete) {

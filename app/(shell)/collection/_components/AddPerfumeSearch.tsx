@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { toggleOwned, toggleDesired, toggleSniffed } from "@/app/actions/library";
+import {
+  toggleOwned,
+  toggleDesired,
+  toggleSniffed,
+  toggleCurious,
+} from "@/app/actions/library";
 
 type Result = {
   id: number;
@@ -99,6 +104,15 @@ export function AddPerfumeSearch() {
                   className="rounded-[var(--radius-pill)] border border-[color:var(--line)] px-3 py-1 text-xs font-medium hover:border-[color:var(--accent)] hover:text-[color:var(--accent-strong)]"
                 >
                   + Sniffed
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    startTransition(() => toggleCurious(r.id, true))
+                  }
+                  className="rounded-[var(--radius-pill)] border border-[color:var(--line)] px-3 py-1 text-xs font-medium hover:border-[color:var(--accent)] hover:text-[color:var(--accent-strong)]"
+                >
+                  + Curious
                 </button>
               </div>
             </li>

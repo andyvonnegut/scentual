@@ -8,7 +8,13 @@ import { requireUser } from "@/lib/auth";
 import { AddPerfumeSearch } from "./_components/AddPerfumeSearch";
 import { SavedCard } from "./_components/SavedCard";
 
-const VALID_FILTERS: LibraryFilter[] = ["all", "owned", "desired", "sniffed"];
+const VALID_FILTERS: LibraryFilter[] = [
+  "all",
+  "owned",
+  "desired",
+  "sniffed",
+  "curious",
+];
 
 const LEGACY_FILTER_REDIRECTS: Record<string, string> = {
   collection: "/collection?filter=owned",

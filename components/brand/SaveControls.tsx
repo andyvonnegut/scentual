@@ -2,24 +2,32 @@
 
 import { useState, useTransition } from "react";
 import { cn } from "@/lib/utils";
-import { toggleOwned, toggleDesired, toggleSniffed } from "@/app/actions/library";
+import {
+  toggleOwned,
+  toggleDesired,
+  toggleSniffed,
+  toggleCurious,
+} from "@/app/actions/library";
 
 export function SaveControls({
   perfumeId,
   initialInOwned,
   initialInDesired,
   initialInSniffed,
+  initialInCurious,
   compact = false,
 }: {
   perfumeId: number;
   initialInOwned: boolean;
   initialInDesired: boolean;
   initialInSniffed: boolean;
+  initialInCurious: boolean;
   compact?: boolean;
 }) {
   const [inOwned, setInOwned] = useState(initialInOwned);
   const [inDesired, setInDesired] = useState(initialInDesired);
   const [inSniffed, setInSniffed] = useState(initialInSniffed);
+  const [inCurious, setInCurious] = useState(initialInCurious);
   const [isPending, startTransition] = useTransition();
 
   const handleOwned = () => {
@@ -61,6 +69,19 @@ export function SaveControls({
     });
   };
 
+  const handleCurious = () => {
+    const prev = inCurious;
+    const next = !prev;
+    setInCurious(next);
+    startTransition(async () => {
+      try {
+        await toggleCurious(perfumeId, next);
+      } catch {
+        setInCurious(prev);
+      }
+    });
+  };
+
   const base =
     "rounded-[var(--radius-pill)] border transition-all text-sm font-medium disabled:opacity-60";
   const sizing = compact ? "px-3 py-1 text-xs" : "px-5 py-2";
@@ -94,6 +115,14 @@ export function SaveControls({
         className={cn(base, sizing, inSniffed ? active : inactive)}
       >
         {inSniffed ? "✓ Sniffed" : "Add to Sniffed"}
+      </button>
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={handleCurious}
+        className={cn(base, sizing, inCurious ? active : inactive)}
+      >
+        {inCurious ? "✓ Curious" : "Add to Curious"}
       </button>
     </div>
   );

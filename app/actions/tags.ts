@@ -48,8 +48,8 @@ export async function createThemeTag(name: string) {
 }
 
 // Returns the user's personal_perfumes row id for this perfume, creating a
-// bare row (none of in_owned / in_desired / in_sniffed) if one doesn't
-// exist. Lets us hang notes or tags on a perfume the user hasn't saved.
+// bare row (none of in_owned / in_desired / in_sniffed / in_curious) if one
+// doesn't exist. Lets us hang notes or tags on a perfume the user hasn't saved.
 async function ensurePersonalPerfumeId(
   db: SupabaseClient,
   userId: string,

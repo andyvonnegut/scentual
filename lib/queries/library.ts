@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth";
 
-export type LibraryFilter = "all" | "owned" | "desired" | "sniffed";
+export type LibraryFilter = "all" | "owned" | "desired" | "sniffed" | "curious";
 
 export async function getSavedPerfumes(filter: LibraryFilter = "all") {
   const user = await getSessionUser();
@@ -12,10 +12,10 @@ export async function getSavedPerfumes(filter: LibraryFilter = "all") {
     .from("personal_perfumes")
     .select(
       `
-      id, in_owned, in_desired, in_sniffed, favorite,
+      id, in_owned, in_desired, in_sniffed, in_curious, favorite,
       size_owned_text, personal_note,
       projection_rating, overall_rating, design_rating,
-      added_to_owned_at, added_to_desired_at, added_to_sniffed_at, updated_at,
+      added_to_owned_at, added_to_desired_at, added_to_sniffed_at, added_to_curious_at, updated_at,
       perfume:perfumes!inner(
         id, name, slug,
         manufacturer:manufacturers(id, name, slug),
@@ -35,6 +35,7 @@ export async function getSavedPerfumes(filter: LibraryFilter = "all") {
   if (filter === "owned") query = query.eq("in_owned", true);
   else if (filter === "desired") query = query.eq("in_desired", true);
   else if (filter === "sniffed") query = query.eq("in_sniffed", true);
+  else if (filter === "curious") query = query.eq("in_curious", true);
 
   const { data } = await query;
   return data ?? [];

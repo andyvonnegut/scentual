@@ -452,6 +452,7 @@ export type Database = {
           in_owned: boolean;
           in_desired: boolean;
           in_sniffed: boolean;
+          in_curious: boolean;
           size_owned_text: string | null;
           personal_note: string | null;
           personal_narrative: string | null;
@@ -462,6 +463,7 @@ export type Database = {
           added_to_owned_at: string | null;
           added_to_desired_at: string | null;
           added_to_sniffed_at: string | null;
+          added_to_curious_at: string | null;
           updated_at: string;
         };
         Insert: {
@@ -471,6 +473,7 @@ export type Database = {
           in_owned?: boolean;
           in_desired?: boolean;
           in_sniffed?: boolean;
+          in_curious?: boolean;
           size_owned_text?: string | null;
           personal_note?: string | null;
           personal_narrative?: string | null;
@@ -481,6 +484,7 @@ export type Database = {
           added_to_owned_at?: string | null;
           added_to_desired_at?: string | null;
           added_to_sniffed_at?: string | null;
+          added_to_curious_at?: string | null;
           updated_at?: string;
         };
         Update: {
@@ -490,6 +494,7 @@ export type Database = {
           in_owned?: boolean;
           in_desired?: boolean;
           in_sniffed?: boolean;
+          in_curious?: boolean;
           size_owned_text?: string | null;
           personal_note?: string | null;
           personal_narrative?: string | null;
@@ -500,6 +505,7 @@ export type Database = {
           added_to_owned_at?: string | null;
           added_to_desired_at?: string | null;
           added_to_sniffed_at?: string | null;
+          added_to_curious_at?: string | null;
           updated_at?: string;
         };
         Relationships: [

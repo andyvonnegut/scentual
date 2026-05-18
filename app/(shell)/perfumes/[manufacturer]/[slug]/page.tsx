@@ -189,6 +189,7 @@ export default async function PerfumeDetailPage({
                   initialInOwned={personal?.in_owned ?? false}
                   initialInDesired={personal?.in_desired ?? false}
                   initialInSniffed={personal?.in_sniffed ?? false}
+                  initialInCurious={personal?.in_curious ?? false}
                 />
                 <RatingsControlGroup
                   perfumeId={perfume.id}
